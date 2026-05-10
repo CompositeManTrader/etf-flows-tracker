@@ -11,6 +11,17 @@ _FLOW_COLS = [
 ]
 
 
+def _to_naive_date(series: pd.Series) -> pd.Series:
+    s = pd.to_datetime(series, errors="coerce", utc=False)
+    tz = getattr(s.dt, "tz", None)
+    if tz is not None:
+        try:
+            s = s.dt.tz_convert(None)
+        except (TypeError, AttributeError):
+            s = s.dt.tz_localize(None)
+    return s.dt.normalize()
+
+
 def _enrich(df: pd.DataFrame) -> pd.DataFrame:
     universe = get_universe()
     meta = pd.DataFrame.from_dict(universe, orient="index").reset_index().rename(columns={"index": "ticker"})
@@ -22,7 +33,7 @@ def compute_daily_flows(shares_history: pd.DataFrame, prices: pd.DataFrame) -> p
         return pd.DataFrame(columns=_FLOW_COLS)
 
     h = shares_history.copy()
-    h["snapshot_date"] = pd.to_datetime(h["snapshot_date"]).dt.normalize()
+    h["snapshot_date"] = _to_naive_date(h["snapshot_date"])
     h = h.sort_values(["ticker", "snapshot_date"])
     h["prev_shares"] = h.groupby("ticker")["shares_outstanding"].shift(1)
     h["delta_shares"] = h["shares_outstanding"] - h["prev_shares"]
@@ -34,7 +45,7 @@ def compute_daily_flows(shares_history: pd.DataFrame, prices: pd.DataFrame) -> p
         merged["volume"] = pd.NA
     else:
         p = prices.copy()
-        p["date"] = pd.to_datetime(p["date"]).dt.normalize()
+        p["date"] = _to_naive_date(p["date"])
         merged = h.merge(
             p, left_on=["snapshot_date", "ticker"], right_on=["date", "ticker"], how="left"
         )
