@@ -40,9 +40,13 @@ def _parse(html: str) -> float | None:
 
 def fetch(ticker: str) -> float | None:
     t = ticker.lower()
-    urls = [f"https://finance.proshares.com/funds/{t}.html"]
+    urls = [
+        f"https://finance.proshares.com/funds/{t}.html",
+        f"https://finance.proshares.com/funds/{t}",
+    ]
     for cat in _CATEGORIES:
         urls.append(f"https://www.proshares.com/our-etfs/{cat}/{t}")
+        urls.append(f"https://www.proshares.com/our-etfs/{cat}/{t}/")
     for url in urls:
         html = get_text(url)
         if html:

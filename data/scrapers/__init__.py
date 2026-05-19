@@ -11,7 +11,7 @@ from typing import Callable
 
 from config.universe import get_universe
 
-from . import ark, ishares, proshares, spdr, vaneck, vanguard
+from . import ark, invesco, ishares, proshares, spdr, vaneck, vanguard
 
 _ISSUER_DISPATCH: dict[str, Callable[[str], float | None]] = {
     "iShares": ishares.fetch,
@@ -22,6 +22,7 @@ _ISSUER_DISPATCH: dict[str, Callable[[str], float | None]] = {
     "ProShares": proshares.fetch,
     "Vanguard": vanguard.fetch,
     "VanEck": vaneck.fetch,
+    "Invesco": invesco.fetch,
 }
 
 
