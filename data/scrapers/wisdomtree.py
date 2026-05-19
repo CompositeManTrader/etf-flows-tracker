@@ -1,23 +1,22 @@
-"""VanEck scraper."""
+"""WisdomTree scraper (HEDJ)."""
 from __future__ import annotations
 
 from ._http import get_text
 from ._parse import find_shares_in_html
 
 _SLUGS = {
-    "SMH": "semiconductor-etf-smh",
-    "MOAT": "morningstar-wide-moat-etf-moat",
-    "EMLC": "jp-morgan-em-local-currency-bond-etf-emlc",
+    "HEDJ": "europe-hedged-equity-fund",
 }
 
 
 def fetch(ticker: str) -> float | None:
+    t = ticker.lower()
     slug = _SLUGS.get(ticker.upper())
     urls = []
     if slug:
-        urls.append(f"https://www.vaneck.com/us/en/investments/{slug}/overview/")
-        urls.append(f"https://www.vaneck.com/us/en/investments/{slug}/")
-    urls.append(f"https://www.vaneck.com/us/en/investments/{ticker.lower()}/")
+        urls.append(f"https://www.wisdomtree.com/investments/etfs/equity/{slug}")
+    urls.append(f"https://www.wisdomtree.com/investments/etfs/{t}")
+    urls.append(f"https://www.wisdomtree.com/{t}")
     for url in urls:
         html = get_text(url)
         if html:

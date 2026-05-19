@@ -1,4 +1,4 @@
-"""Invesco scraper."""
+"""Fidelity scraper (FBTC, Wise Origin Bitcoin Fund)."""
 from __future__ import annotations
 
 from ._http import get_text
@@ -8,13 +8,11 @@ from ._parse import find_shares_in_html
 def fetch(ticker: str) -> float | None:
     t = ticker.upper()
     urls = [
-        f"https://www.invesco.com/us/financial-products/etfs/product-detail?audienceType=Investor&ticker={t}",
-        f"https://www.invesco.com/qqq-etf/en/about.html" if t == "QQQ" else None,
-        f"https://www.invesco.com/qqq-etf/en/home.html" if t == "QQQ" else None,
+        f"https://institutional.fidelity.com/app/funds-and-products/{t}/",
+        f"https://www.fidelity.com/etfs/summary/{t}",
+        f"https://fundresearch.fidelity.com/etfs/snapshot/{t}",
     ]
     for url in urls:
-        if not url:
-            continue
         html = get_text(url)
         if html:
             shares = find_shares_in_html(html)

@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 
 from ._http import get_text
+from ._parse import find_shares_in_html
 
 # ticker -> (product_id, slug)
 # Slug is optional; iShares accepts product_id + any slug (it redirects).
@@ -22,7 +23,7 @@ _PRODUCT_IDS: dict[str, tuple[int, str]] = {
     "QUAL": (256101, "ishares-msci-usa-quality-factor-etf"),
     "USMV": (239693, "ishares-msci-usa-min-vol-factor-etf"),
     "VLUE": (251616, "ishares-msci-usa-value-factor-etf"),
-    "SIZE": (251617, "ishares-msci-usa-size-factor-etf"),
+    "SIZE": (251615, "ishares-msci-usa-size-factor-etf"),
     "IWF":  (239706, "ishares-russell-1000-growth-etf"),
     "IWD":  (239708, "ishares-russell-1000-value-etf"),
     "IWN":  (239709, "ishares-russell-2000-value-etf"),
@@ -59,7 +60,7 @@ _PRODUCT_IDS: dict[str, tuple[int, str]] = {
     "REM":  (239512, "ishares-mortgage-real-estate-etf"),
     "IBIT": (333011, "ishares-bitcoin-trust"),
     "ETHA": (333890, "ishares-ethereum-trust-etf"),
-    "HEFA": (251615, "ishares-currency-hedged-msci-eafe-etf"),
+    "HEFA": (272335, "ishares-currency-hedged-msci-eafe-etf"),
     "SHV":  (239466, "ishares-short-treasury-bond-etf"),
 }
 
@@ -152,4 +153,8 @@ def fetch(ticker: str) -> float | None:
         return shares
 
     html = get_text(_product_page_url(product_id, slug))
-    return _parse_html(html or "")
+    if html:
+        shares = _parse_html(html) or find_shares_in_html(html)
+        if shares:
+            return shares
+    return None

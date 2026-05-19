@@ -1,17 +1,14 @@
-"""Issuer-by-issuer scrapers for shares outstanding.
-
-Each scraper exposes `fetch(ticker: str) -> float | None`. Returns None on
-any failure (network, parse, missing field). The dispatcher `try_scrape`
-routes a ticker to the right scraper based on the `issuer` field in the
-ETF universe.
-"""
+"""Issuer-by-issuer scrapers for shares outstanding."""
 from __future__ import annotations
 
 from typing import Callable
 
 from config.universe import get_universe
 
-from . import ark, invesco, ishares, proshares, spdr, vaneck, vanguard
+from . import (
+    ark, bitwise, fidelity, invesco, ipath, ishares, kraneshares,
+    proshares, roboglobal, simplify, spdr, vaneck, vanguard, wisdomtree,
+)
 
 _ISSUER_DISPATCH: dict[str, Callable[[str], float | None]] = {
     "iShares": ishares.fetch,
@@ -23,16 +20,17 @@ _ISSUER_DISPATCH: dict[str, Callable[[str], float | None]] = {
     "Vanguard": vanguard.fetch,
     "VanEck": vaneck.fetch,
     "Invesco": invesco.fetch,
+    "KraneShares": kraneshares.fetch,
+    "Fidelity": fidelity.fetch,
+    "Bitwise": bitwise.fetch,
+    "WisdomTree": wisdomtree.fetch,
+    "Simplify": simplify.fetch,
+    "Barclays": ipath.fetch,
+    "ROBO Global": roboglobal.fetch,
 }
 
 
 def try_scrape(ticker: str) -> tuple[float | None, str]:
-    """Look up issuer in universe and call the matching scraper.
-
-    Returns (shares, source_label). source_label is "scraper:{issuer}" on
-    success, "no_scraper" if there's no scraper for that issuer, or
-    "scraper:{issuer}:failed" on failure.
-    """
     universe = get_universe()
     meta = universe.get(ticker, {})
     issuer = meta.get("issuer")
