@@ -19,8 +19,8 @@ _SHARES_KEY_RE = re.compile(
 
 _TEXT_RE = re.compile(
     r"(?:Shares?\s+Outstanding|Total\s+Shares|Number\s+of\s+Shares)"
-    r"[^0-9\-]{1,120}([\d,\.]+)\s*(M|MM|Million|B|Billion|K|Thousand)?",
-    re.IGNORECASE,
+    r"[^0-9]{1,200}?([\d][\d,\.]*)\s*(M|MM|Million|B|Billion|K|Thousand)?",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
