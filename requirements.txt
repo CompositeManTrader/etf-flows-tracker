@@ -6,3 +6,5 @@ plotly>=5.18
 pyarrow>=14.0
 streamlit-autorefresh>=1.0.1
 groq>=0.4.0
+requests>=2.31
+openpyxl>=3.1

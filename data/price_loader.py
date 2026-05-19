@@ -7,6 +7,7 @@ import pandas as pd
 import yfinance as yf
 
 from config.universe import get_tickers
+from data.scrapers import try_scrape
 
 
 def _utc_now_naive() -> pd.Timestamp:
@@ -43,8 +44,10 @@ def fetch_shares_outstanding(tickers: list[str] | None = None, sleep: float = 0.
 
     1. Ticker.info["sharesOutstanding"]
     2. Ticker.info["impliedSharesOutstanding"]
-    3. Ticker.fast_info.shares  (different endpoint, often works when .info fails)
-    4. Last value of Ticker.get_shares_full() over the last 30 days (historical)
+    3. Ticker.fast_info.shares
+    4. Ticker.get_shares_full() last value (historical, last 30d window)
+    5. Issuer-specific scraper (iShares JSON, SPDR XLSX, ARK/ProShares HTML,
+       Vanguard API, VanEck HTML) — see data.scrapers.try_scrape
     """
     if tickers is None:
         tickers = get_tickers()
@@ -80,7 +83,15 @@ def fetch_shares_outstanding(tickers: list[str] | None = None, sleep: float = 0.
                     shares = hist
                     source = "get_shares_full"
         except Exception as e:  # noqa: BLE001
-            source = f"error: {type(e).__name__}: {e}"
+            source = f"yfinance_error: {type(e).__name__}: {e}"
+
+        if shares is None:
+            scraped, scrape_source = try_scrape(t)
+            if scraped is not None:
+                shares = scraped
+                source = scrape_source
+            elif source == "missing":
+                source = scrape_source
 
         rows.append({
             "ticker": t,
