@@ -64,6 +64,18 @@ def compute_daily_flows(shares_history: pd.DataFrame, prices: pd.DataFrame) -> p
     return merged[_FLOW_COLS].sort_values(["date", "ticker"]).reset_index(drop=True)
 
 
+def _trading_day_cutoff(f: pd.DataFrame, n_days: int) -> pd.Timestamp:
+    """Return the date that, used as `date >= cutoff`, yields the last N trading days.
+
+    Operates on actual unique trading dates present in `f`, not calendar days.
+    """
+    trading_dates = sorted(pd.to_datetime(f["date"].dropna().unique()))
+    if not trading_dates:
+        return pd.Timestamp.min
+    idx = max(0, len(trading_dates) - n_days)
+    return pd.Timestamp(trading_dates[idx])
+
+
 def aggregate_by_category(flows: pd.DataFrame, period_days: int = 1) -> pd.DataFrame:
     if flows is None or flows.empty:
         return pd.DataFrame(columns=["category", "flow_usd", "flow_usd_b"])
@@ -72,8 +84,7 @@ def aggregate_by_category(flows: pd.DataFrame, period_days: int = 1) -> pd.DataF
     if f.empty:
         return pd.DataFrame(columns=["category", "flow_usd", "flow_usd_b"])
 
-    max_date = f["date"].max()
-    cutoff = max_date - pd.Timedelta(days=period_days - 1)
+    cutoff = _trading_day_cutoff(f, period_days)
     f = f[f["date"] >= cutoff]
 
     agg = f.groupby("category", as_index=False)["flow_usd"].sum()
@@ -82,21 +93,47 @@ def aggregate_by_category(flows: pd.DataFrame, period_days: int = 1) -> pd.DataF
 
 
 def compute_zscore(flows: pd.DataFrame, window: int = 60) -> pd.DataFrame:
+    """Rolling z-score per ticker, computed only on rows with a valid flow_usd.
+
+    Drops NaN rows before the rolling so `window` reflects actual observations,
+    then reindexes back so columns are aligned with the input.
+    """
     if flows is None or flows.empty:
         out = flows.copy() if flows is not None else pd.DataFrame()
         for col in ("flow_mean", "flow_std", "flow_z"):
             out[col] = pd.NA
         return out
 
-    f = flows.sort_values(["ticker", "date"]).copy()
-    grouped = f.groupby("ticker")["flow_usd"]
-    f["flow_mean"] = grouped.transform(lambda s: s.rolling(window, min_periods=10).mean())
-    f["flow_std"] = grouped.transform(lambda s: s.rolling(window, min_periods=10).std())
-    f["flow_z"] = (f["flow_usd"] - f["flow_mean"]) / f["flow_std"]
+    f = flows.sort_values(["ticker", "date"]).copy().reset_index(drop=True)
+
+    valid = f.dropna(subset=["flow_usd"]).copy()
+    if valid.empty:
+        for col in ("flow_mean", "flow_std", "flow_z"):
+            f[col] = pd.NA
+        return f
+
+    grouped = valid.groupby("ticker")["flow_usd"]
+    valid["flow_mean"] = grouped.transform(lambda s: s.rolling(window, min_periods=10).mean())
+    valid["flow_std"] = grouped.transform(lambda s: s.rolling(window, min_periods=10).std())
+    valid["flow_z"] = (valid["flow_usd"] - valid["flow_mean"]) / valid["flow_std"]
+
+    f = f.merge(
+        valid[["ticker", "date", "flow_mean", "flow_std", "flow_z"]],
+        on=["ticker", "date"],
+        how="left",
+    )
     return f
 
 
 def detect_rotation(flows: pd.DataFrame, short: int = 5, long: int = 20) -> pd.DataFrame:
+    """Rotation signal: recent N=short trading-day flow vs the prior (long-short)
+    trading-day flow, normalized to comparable window length.
+
+    Columns:
+      - flow_short_b: net flow in the last `short` trading days
+      - flow_long_b:  net flow in the (long - short) trading days BEFORE that
+      - rotation_b:   flow_short - flow_long * short / (long - short)
+    """
     cols = ["category", "flow_short_b", "flow_long_b", "rotation_b"]
     if flows is None or flows.empty:
         return pd.DataFrame(columns=cols)
@@ -105,9 +142,14 @@ def detect_rotation(flows: pd.DataFrame, short: int = 5, long: int = 20) -> pd.D
     if f.empty:
         return pd.DataFrame(columns=cols)
 
-    max_date = f["date"].max()
-    short_start = max_date - pd.Timedelta(days=short - 1)
-    long_start = max_date - pd.Timedelta(days=long - 1)
+    trading_dates = sorted(pd.to_datetime(f["date"].unique()))
+    if not trading_dates:
+        return pd.DataFrame(columns=cols)
+
+    short_n = min(short, len(trading_dates))
+    long_n = min(long, len(trading_dates))
+    short_start = trading_dates[-short_n]
+    long_start = trading_dates[-long_n]
 
     short_window = f[f["date"] >= short_start]
     long_window = f[(f["date"] >= long_start) & (f["date"] < short_start)]
