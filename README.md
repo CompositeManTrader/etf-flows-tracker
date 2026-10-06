@@ -20,10 +20,16 @@ Flow % AUM = Flow_t / (Shares_{t-1} × NAV_{t-1})
 | SPDR `navhist-us-en-{ticker}.xlsx` | 17 (SPY, DIA, XL*, GLD, XBI, JNK, BIL) | Diario, ~1 año de backfill |
 | iShares página de producto (`Shares Outstanding … as of …` + NAV JSON-LD) | 45 | Sólo valor actual; se acumula diario |
 | ProShares `{ticker}-historical_nav.csv` | 3 (UVXY, SVXY, VIXY) | Diario, ~1 año de backfill |
+| Invesco API de precios (`dng-api`, por CUSIP) | 5 (QQQ, QQQM, DBA, DBC, PDBC) | Sólo valor actual |
 | Páginas de issuer (KraneShares, Simplify, Bitwise) | 3 (KWEB, SVOL, BITB) | Sólo valor actual |
-| **Sin fuente oficial verificada** | 27 (Vanguard, ARK, VanEck, Invesco, USCF, WisdomTree, Fidelity, iPath, ROBO) | — |
+| **Sin fuente oficial verificada** | 22 (Vanguard, ARK, VanEck, USCF, WisdomTree, Fidelity, iPath, ROBO) | — |
 
 Si una fuente falla, ese ticker queda vacío esa sesión; **nunca** se rellena con otra fuente (mezclar fuentes generaba flows fantasma).
+
+Notas de fuentes:
+- **Invesco**: `effectiveDate` es la fecha de publicación; NAV y shares son de la sesión anterior (verificado contra el cierre), así que se guardan bajo esa sesión. Requiere `curl_cffi` (huella TLS de Chrome) para pasar su filtro anti-bots.
+- **Vanguard** sólo publica shares a cierre de mes; VOO/VTI no pueden tener flow diario con fuentes públicas.
+- **Nasdaq** (`api.nasdaq.com`, campo AUM) se evaluó y se descartó: va 1–3 días atrasado y difiere hasta 7% del dato del issuer.
 
 ## Controles de calidad
 
@@ -36,6 +42,7 @@ Cada fila de flow lleva `quality`; sólo `ok` y `multi_day` cuentan:
 | `pending` | Salto >15% en el último dato; espera a la siguiente publicación |
 | `suspect` | Salto >15% que la siguiente publicación revierte |
 | `no_price` | Sin NAV ni close para la sesión |
+| `price_mismatch` | NAV del issuer a >5% del cierre (fondo mal mapeado); tolera razones de split |
 | `multi_day` | El dato previo está a >1 sesión; el flow cubre todo el hueco |
 
 Además: rechazo de valores <100k shares y eliminación de picos aislados. Como cada issuer publica con distinto rezago, rankings, agregados y rotación usan la **última sesión completa** (≥60% de cobertura), no la fecha más nueva.

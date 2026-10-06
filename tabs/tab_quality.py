@@ -10,10 +10,9 @@ from core.flows_calc import session_coverage
 from core.trading_calendar import last_completed_session, trading_days_between
 
 _NO_SOURCE_REASON = {
-    "Vanguard": "Sólo publica activos mensuales",
+    "Vanguard": "Sólo publica shares a cierre de mes",
     "ARK": "Página renderizada con JS",
     "VanEck": "Página renderizada con JS",
-    "Invesco": "Bloquea acceso automatizado (406)",
     "WisdomTree": "Bloquea acceso automatizado (403)",
     "Fidelity": "Página renderizada con JS",
 }

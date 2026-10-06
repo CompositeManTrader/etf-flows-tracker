@@ -13,15 +13,17 @@ import pandas as pd
 
 from config.universe import get_universe
 
-from . import ishares, pages, proshares, spdr
+from . import invesco, ishares, pages, proshares, spdr
 
 _BY_ISSUER: dict[str, tuple[str, Callable[[str], pd.DataFrame]]] = {
     "SPDR": ("spdr_navhist", spdr.fetch),
     "ProShares": ("proshares_navcsv", proshares.fetch),
 }
 
-# Issuers checked and found unusable (Oct 2026): Vanguard publishes only monthly
-# assets; ARK, VanEck, Invesco, WisdomTree, Fidelity render via JS or block bots.
+# Checked and found unusable (Oct 2026): Vanguard publishes shares only at month
+# end (advisors API pricing/outstanding-shares); ARK, VanEck, WisdomTree, Fidelity
+# render via JS or block bots; Nasdaq's AUM field lags 1–3 days and is off by up
+# to 7% vs issuer data, so it can't be used to derive daily flows.
 
 
 def source_for(ticker: str) -> tuple[str, Callable[[str], pd.DataFrame]] | None:
@@ -30,6 +32,8 @@ def source_for(ticker: str) -> tuple[str, Callable[[str], pd.DataFrame]] | None:
         return "issuer_page", pages.fetch
     if t in ishares.PRODUCTS:
         return "ishares_page", ishares.fetch
+    if t in invesco.CUSIPS:
+        return "invesco_api", invesco.fetch
     issuer = get_universe().get(t, {}).get("issuer")
     return _BY_ISSUER.get(issuer)
 

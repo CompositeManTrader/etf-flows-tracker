@@ -10,6 +10,8 @@ from core.trading_calendar import NYSE_HOLIDAYS
 JUMP_THRESHOLD = 0.15   # one-session |Δshares / shares| above this needs confirmation
 CONFIRM_TOL = 0.02      # spike removal: neighbours this close mean the middle print was bad
 SPLIT_TOL = 0.05        # shares×price roughly unchanged across a big jump => split
+PRICE_GAP_TOL = 0.05    # issuer NAV this far from the market close => wrong fund mapping
+                        # (bond ETFs have traded ~5% from NAV in stress, so not tighter)
 VALID_QUALITY = ("ok", "multi_day")
 
 _FLOW_COLS = [
@@ -65,6 +67,7 @@ def compute_daily_flows(shares_history: pd.DataFrame, prices: pd.DataFrame) -> p
       pending   — big jump on the latest print, waits for the next print to confirm
       suspect   — big jump that the next print does not confirm
       no_price  — neither NAV nor close for that session
+      price_mismatch — issuer NAV >5% away from the market close (mis-mapped fund)
       multi_day — previous print is >1 session back; flow covers the whole gap
     """
     if shares_history is None or shares_history.empty:
@@ -102,10 +105,17 @@ def compute_daily_flows(shares_history: pd.DataFrame, prices: pd.DataFrame) -> p
     # A real big creation/redemption sticks: the next print stays nearer the new level than the old one.
     confirmed = (h["next_shares"] - h["shares_outstanding"]).abs() < (h["next_shares"] - h["prev_shares"]).abs()
 
+    # yfinance closes are split-adjusted while issuer NAVs are not, so before a
+    # split nav/close is a clean ratio (2, 1/2, 3…). That is not a mapping error.
+    gap = (h["nav"] / h["close"]).to_numpy(dtype=float)
+    k = np.arange(2, 21)[:, None]
+    near_split = np.nanmin(np.minimum(np.abs(gap * k - 1), np.abs(gap / k - 1)), axis=0) < 0.01
+    mismatch = (np.abs(gap - 1) > PRICE_GAP_TOL) & ~near_split
+
     h["quality"] = np.select(
-        [h["prev_shares"].isna(), split, big & h["next_shares"].isna(), big & ~confirmed,
+        [h["prev_shares"].isna(), mismatch, split, big & h["next_shares"].isna(), big & ~confirmed,
          h["price"].isna(), h["gap_days"] > 1],
-        ["first", "split", "pending", "suspect", "no_price", "multi_day"],
+        ["first", "price_mismatch", "split", "pending", "suspect", "no_price", "multi_day"],
         default="ok",
     )
 
