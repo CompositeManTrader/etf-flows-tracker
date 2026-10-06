@@ -1,41 +1,42 @@
-"""Standalone daily snapshot job — fetches shares outstanding and persists to parquet."""
+"""Fetch official shares outstanding for every ticker and upsert by (ticker, as_of_date).
+
+Safe to run any number of times per day: each issuer number is stored under the
+trading session it belongs to, so late or repeated runs can't mislabel days.
+"""
 from __future__ import annotations
 
 import sys
-from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from data.cache import save_daily_snapshot  # noqa: E402
-from data.price_loader import check_coverage, fetch_shares_outstanding  # noqa: E402
+from data.cache import save_status, upsert_history  # noqa: E402
+from data.shares_loader import fetch_all  # noqa: E402
 
 
 def main() -> int:
-    print("Fetching shares outstanding (yfinance + issuer scrapers)...", flush=True)
-    df = fetch_shares_outstanding()
-    cov = check_coverage(df)
-    print(
-        f"Coverage: {cov['covered']}/{cov['total']} ({cov['coverage_pct']:.1f}%)",
-        flush=True,
-    )
+    print("Fetching official shares outstanding...", flush=True)
+    obs, status = fetch_all()
 
-    # Source breakdown
-    covered_df = df[df["shares_outstanding"].notna()]
-    sources = Counter(covered_df["source"].tolist())
-    print("Source breakdown (covered tickers):", flush=True)
-    for src, n in sources.most_common():
-        print(f"  {src}: {n}", flush=True)
+    n = len(status)
+    ok = status[status["status"] == "ok"]
+    print(f"Coverage: {len(ok)}/{n} ({len(ok) / n:.1%})", flush=True)
+    print(status.groupby(["source", "status"], dropna=False).size().to_string(), flush=True)
 
-    if cov["missing"]:
-        print(f"\nMissing ({len(cov['missing'])}): {', '.join(cov['missing'])}", flush=True)
-        miss_sources = Counter(df.loc[df["shares_outstanding"].isna(), "source"].tolist())
-        print("Missing-reason breakdown:", flush=True)
-        for src, n in miss_sources.most_common():
-            print(f"  {src}: {n}", flush=True)
+    bad = status[status["status"].isin(["error", "rejected"])]
+    for _, r in bad.iterrows():
+        print(f"  ! {r.ticker} [{r.source}] {r.status}: {r.detail}", flush=True)
+    print("No reliable source:", ", ".join(status.loc[status["status"] == "no_source", "ticker"]), flush=True)
 
-    path = save_daily_snapshot(df)
-    print(f"\nSaved snapshot: {path}", flush=True)
+    save_status(status)
+    if obs.empty:
+        print("No observations fetched; history left untouched.", flush=True)
+        return 1
+
+    hist = upsert_history(obs)
+    print(f"History: {len(hist)} rows, {hist['ticker'].nunique()} tickers, "
+          f"{hist['as_of_date'].min().date()}..{hist['as_of_date'].max().date()}", flush=True)
+    print("Latest as-of by source:", ok.groupby("source")["last_as_of"].max().dt.date.to_dict(), flush=True)
     return 0
 
 

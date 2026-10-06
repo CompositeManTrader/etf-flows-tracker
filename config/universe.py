@@ -49,12 +49,12 @@ ETF_UNIVERSE: dict[str, dict[str, str]] = {
     "XBI":  {"category": "Thematic", "subcategory": "Biotech",            "issuer": "SPDR",        "name": "SPDR S&P Biotech"},
     "IBB":  {"category": "Thematic", "subcategory": "Biotech",            "issuer": "iShares",     "name": "iShares Biotechnology"},
 
-    # Volatility (5)
-    "VXX":  {"category": "Volatility", "subcategory": "Long Vol Short-term", "issuer": "Barclays",  "name": "iPath Series B S&P 500 VIX Short-Term"},
-    "UVXY": {"category": "Volatility", "subcategory": "Long Vol 1.5x",      "issuer": "ProShares", "name": "ProShares Ultra VIX Short-Term"},
-    "SVXY": {"category": "Volatility", "subcategory": "Short Vol -0.5x",    "issuer": "ProShares", "name": "ProShares Short VIX Short-Term"},
-    "VIXY": {"category": "Volatility", "subcategory": "Long Vol Short-term", "issuer": "ProShares", "name": "ProShares VIX Short-Term"},
-    "SVOL": {"category": "Volatility", "subcategory": "Short Vol Income",   "issuer": "Simplify",  "name": "Simplify Volatility Premium"},
+    # Volatility (5) — split by direction: inflows to long-vol and short-vol are opposite bets
+    "VXX":  {"category": "Volatility Long",  "subcategory": "Long Vol Short-term", "issuer": "Barclays",  "name": "iPath Series B S&P 500 VIX Short-Term"},
+    "UVXY": {"category": "Volatility Long",  "subcategory": "Long Vol 1.5x",       "issuer": "ProShares", "name": "ProShares Ultra VIX Short-Term"},
+    "SVXY": {"category": "Volatility Short", "subcategory": "Short Vol -0.5x",     "issuer": "ProShares", "name": "ProShares Short VIX Short-Term"},
+    "VIXY": {"category": "Volatility Long",  "subcategory": "Long Vol Short-term", "issuer": "ProShares", "name": "ProShares VIX Short-Term"},
+    "SVOL": {"category": "Volatility Short", "subcategory": "Short Vol Income",    "issuer": "Simplify",  "name": "Simplify Volatility Premium"},
 
     # Intl DM (8)
     "EFA":  {"category": "Intl DM", "subcategory": "EAFE",      "issuer": "iShares",  "name": "iShares MSCI EAFE"},

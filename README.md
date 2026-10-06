@@ -1,94 +1,83 @@
 # 📊 ETF Flows Tracker
 
-Dashboard de Streamlit que trackea **flows (creations / redemptions)** de ~95 ETFs principales (US broad, sectores, factor, internacionales, EM, bonds, commodities, REITs, crypto, defensivos).
+Dashboard de Streamlit que trackea **flows (creations / redemptions)** de 95 ETFs principales (US broad, sectores, factor, internacionales, EM, bonds, commodities, REITs, crypto, volatilidad, defensivos).
 
 ## Fórmula
 
 ```
-Flow_t = (Shares_Outstanding_t − Shares_Outstanding_{t-1}) × Close_t
+Flow_t = (Shares_Outstanding_t − Shares_Outstanding_{t-1}) × NAV_t
+Flow % AUM = Flow_t / (Shares_{t-1} × NAV_{t-1})
 ```
 
-`yfinance` solo expone `sharesOutstanding` actual, no histórico. Por eso el approach es:
+- **Shares y NAV vienen del issuer**, fechados por la sesión de trading a la que pertenecen (as-of), no por la hora en que corre el job.
+- Si el issuer no publica NAV se usa el close de yfinance (columna `price_basis`).
+- yfinance **no** se usa para shares: sus valores de ETFs quedaban congelados por meses (ver *Historia* abajo).
 
-1. **Snapshot diario** de shares outstanding → persistido en `data/snapshots/*.parquet`
-2. El histórico se construye **día por día** (un GitHub Action commitea el snapshot a las 5:30 PM ET, lun-vie)
-3. Los flows se calculan **on-the-fly** cruzando el histórico de shares con el `Close` de yfinance
+## Fuentes (una sola por ticker, sin fallbacks)
 
-Los snapshots **se commitean al repo** — son la "base de datos" del proyecto.
+| Fuente | ETFs | Historial |
+|---|---|---|
+| SPDR `navhist-us-en-{ticker}.xlsx` | 17 (SPY, DIA, XL*, GLD, XBI, JNK, BIL) | Diario, ~1 año de backfill |
+| iShares página de producto (`Shares Outstanding … as of …` + NAV JSON-LD) | 45 | Sólo valor actual; se acumula diario |
+| ProShares `{ticker}-historical_nav.csv` | 3 (UVXY, SVXY, VIXY) | Diario, ~1 año de backfill |
+| Páginas de issuer (KraneShares, Simplify, Bitwise) | 3 (KWEB, SVOL, BITB) | Sólo valor actual |
+| **Sin fuente oficial verificada** | 27 (Vanguard, ARK, VanEck, Invesco, USCF, WisdomTree, Fidelity, iPath, ROBO) | — |
+
+Si una fuente falla, ese ticker queda vacío esa sesión; **nunca** se rellena con otra fuente (mezclar fuentes generaba flows fantasma).
+
+## Controles de calidad
+
+Cada fila de flow lleva `quality`; sólo `ok` y `multi_day` cuentan:
+
+| quality | Regla |
+|---|---|
+| `first` | Primera observación del ticker |
+| `split` | Salto >15% en shares compensado por el precio (split / reverse split) |
+| `pending` | Salto >15% en el último dato; espera a la siguiente publicación |
+| `suspect` | Salto >15% que la siguiente publicación revierte |
+| `no_price` | Sin NAV ni close para la sesión |
+| `multi_day` | El dato previo está a >1 sesión; el flow cubre todo el hueco |
+
+Además: rechazo de valores <100k shares y eliminación de picos aislados. Como cada issuer publica con distinto rezago, rankings, agregados y rotación usan la **última sesión completa** (≥60% de cobertura), no la fecha más nueva.
 
 ## Arquitectura
 
 ```
-etf-flows-tracker/
-├── app.py                      # Streamlit entry point
-├── config/universe.py          # 95 ETFs categorizados
+├── app.py                        # Streamlit entry point
+├── config/universe.py            # 95 ETFs categorizados (issuer, categoría)
+├── core/
+│   ├── flows_calc.py             # ΔShares × NAV, quality gates, agregados, z-score, rotación
+│   └── trading_calendar.py       # Calendario NYSE (feriados hardcodeados 2024-2027)
 ├── data/
-│   ├── price_loader.py         # yfinance: shares + precios
-│   ├── cache.py                # Persistencia parquet
-│   └── snapshots/              # Histórico (committed)
-├── core/flows_calc.py          # Δshares × Close, agregaciones, z-scores, rotación
-├── tabs/
-│   ├── tab_daily_flows.py      # Top inflows/outflows + bar chart por categoría
-│   ├── tab_intraday.py         # Proxy intraday (volumen relativo)
-│   ├── tab_rotation.py         # Heatmap categoría × ventana + signal 5D vs 20D
-│   ├── tab_signals.py          # Anomalías z-score
-│   └── tab_morning_brief.py    # Brief narrativo con Groq (Llama 3.3-70b)
-├── jobs/daily_snapshot.py      # Cron job standalone
-└── .github/workflows/daily_snapshot.yml
+│   ├── sources/                  # Una fuente oficial por issuer
+│   ├── shares_loader.py          # Fetch + validación por ticker
+│   ├── cache.py                  # Parquet keyed por (ticker, as_of_date)
+│   ├── price_loader.py           # yfinance: sólo precios y volumen
+│   ├── shares/                   # history.parquet + last_run_status.parquet (committed)
+│   └── legacy/snapshots_v1/      # Histórico v1 descartado (sólo referencia)
+├── tabs/                         # Daily Flows, Intraday, Rotation, Signals, Brief, Calidad de datos
+└── jobs/daily_snapshot.py        # Job del cron
 ```
+
+## Cron (GitHub Actions)
+
+`daily_snapshot.yml` corre dos veces por sesión: 23:30 UTC (tarde) y 12:00 UTC (mañana siguiente, para issuers que publican tarde). Es idempotente: cada dato se guarda bajo su sesión as-of, así que corridas retrasadas o repetidas no pueden mal-fechar ni sobreescribir otros días. Usa `concurrency` y reintenta el push con rebase.
+
+Al agregar un año nuevo, extender `NYSE_HOLIDAYS` en `core/trading_calendar.py`.
 
 ## Setup local
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate          # Windows
-# source .venv/bin/activate     # macOS/Linux
-
+.venv\Scripts\activate
 pip install -r requirements.txt
-python jobs/daily_snapshot.py   # primer snapshot
+python jobs/daily_snapshot.py
 streamlit run app.py
 ```
 
-Para el morning brief con LLM, exportar `GROQ_API_KEY` (https://console.groq.com).
+Morning brief: exportar `GROQ_API_KEY` o ponerlo en los secrets de Streamlit Cloud.
 
-## Deploy: Streamlit Community Cloud
+## Historia
 
-1. Conectar el repo en https://share.streamlit.io
-2. Main module: `app.py`
-3. Python: 3.11
-4. (Opcional) Secrets:
-
-```toml
-GROQ_API_KEY = "gsk_..."
-```
-
-Cada commit (incluyendo snapshots automáticos del cron) **redeploya** la app.
-
-## GitHub Actions cron
-
-`.github/workflows/daily_snapshot.yml` corre `python jobs/daily_snapshot.py` cada lunes-viernes a las 22:30 UTC (5:30 PM ET en horario de verano). Idempotente: si se corre 2× el mismo día, deduplica por `snapshot_date`.
-
-Permisos requeridos: `contents: write` (ya configurado en el yml). El workflow puede dispararse manualmente desde la pestaña **Actions** con "Run workflow".
-
-## Roadmap
-
-**v2 — Issuer-by-issuer scrapers (cobertura → ~99%)**
-
-- ARK (csv diario en su web): ARKK, ARKG, ARKW, ARKB
-- iShares (productpage JSON): MTUM, QUAL, USMV, IBIT, ETHA, …
-- SPDR / State Street: GLD, XLK, XLF, …
-- Invesco, Vanguard, VanEck, ProShares: scrapers dedicados
-- Cross-validate contra ETF.com como ground-truth
-
-**v3 — Avanzado**
-
-- Schwab API → premium / discount intraday
-- Alertas push (Telegram / Discord) cuando |z-score| ≥ 3
-- Backtesting de la señal de rotación
-
-## Notas de diseño
-
-- **Idempotencia:** `save_daily_snapshot` deduplica por `snapshot_date`.
-- **Defensive:** todas las funciones de cálculo manejan DataFrame vacío sin crashear.
-- **Sin paths absolutos:** todo relativo con `Path(__file__)`.
-- **El campo `issuer`** existe sólo como hook para los scrapers v2.
+- **v1 (may–oct 2026):** shares de yfinance + scrapers como fallback. Una auditoría en oct-2026 mostró que las shares de yfinance para ETFs no cambiaban (39 tickers sin un solo cambio en 103 días), que casi todos los flows venían de cambios de fuente (p. ej. ±$73B diarios en IWD) y que el cron retrasado fechaba los viernes como sábado. Ese histórico se archivó en `data/legacy/`.
+- **v2 (oct 2026):** fuentes oficiales por issuer, fechas as-of, controles de calidad, NAV y % AUM.

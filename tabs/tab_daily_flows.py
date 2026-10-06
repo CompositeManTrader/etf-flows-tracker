@@ -1,88 +1,76 @@
-"""Daily flows tab: top inflows/outflows + category bar chart."""
+"""Daily flows tab: top inflows/outflows + category bar chart for one trading session."""
 from __future__ import annotations
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from core.flows_calc import aggregate_by_category, top_movers
+from core.flows_calc import aggregate_by_category, latest_complete_date, session_coverage, top_movers
 
 
 def render(flows: pd.DataFrame) -> None:
     st.subheader("Daily Flows")
 
-    if flows is None or flows.empty:
-        st.warning("No hay flows todavía. Corre `python jobs/daily_snapshot.py` al menos 2 días para empezar a ver deltas.")
-        return
-
-    f = flows.dropna(subset=["flow_usd", "date"]).copy()
+    f = flows.dropna(subset=["flow_usd", "date"]) if flows is not None and not flows.empty else pd.DataFrame()
     if f.empty:
-        st.warning("Aún no hay deltas calculables (se necesitan ≥2 snapshots).")
+        st.warning("Aún no hay flows válidos (se necesitan ≥2 sesiones por ETF).")
         return
 
-    last_date = f["date"].max()
-    today = f[f["date"] == last_date]
-
-    inflows_total = today.loc[today["flow_usd"] > 0, "flow_usd"].sum() / 1e9
-    outflows_total = today.loc[today["flow_usd"] < 0, "flow_usd"].sum() / 1e9
-    net = today["flow_usd"].sum() / 1e9
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Inflows", f"${inflows_total:,.2f}B")
-    c2.metric("Total Outflows", f"${outflows_total:,.2f}B")
-    c3.metric("Net Flow", f"${net:,.2f}B")
-
-    st.caption(f"Última fecha: {pd.Timestamp(last_date).date()}")
-
+    cov = session_coverage(f)
+    sessions = list(cov.index[::-1][:30])
+    default = latest_complete_date(f)
+    col_d, col_c, col_n = st.columns([1.2, 3, 1])
+    session = col_d.selectbox(
+        "Sesión", sessions, index=sessions.index(default) if default in sessions else 0,
+        format_func=lambda d: f"{pd.Timestamp(d).date()} · {cov[d]} ETFs",
+    )
     cats = sorted(f["category"].dropna().unique().tolist())
-    col_a, col_b = st.columns([3, 1])
-    selected_cats = col_a.multiselect("Categorías", cats, default=cats)
-    top_n = col_b.number_input("Top N", min_value=5, max_value=50, value=15, step=1)
+    selected_cats = col_c.multiselect("Categorías", cats, default=cats)
+    top_n = col_n.number_input("Top N", min_value=5, max_value=50, value=15, step=1)
 
-    today_f = today[today["category"].isin(selected_cats)] if selected_cats else today
+    day = f[f["date"] == session]
+    if selected_cats:
+        day = day[day["category"].isin(selected_cats)]
 
-    movers = top_movers(today_f, n=int(top_n), side="both")
-    inflow_tbl = movers[movers["flow_usd"] > 0].copy()
-    outflow_tbl = movers[movers["flow_usd"] < 0].copy()
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Inflows", f"${day.loc[day['flow_usd'] > 0, 'flow_usd'].sum() / 1e9:,.2f}B")
+    c2.metric("Total Outflows", f"${day.loc[day['flow_usd'] < 0, 'flow_usd'].sum() / 1e9:,.2f}B")
+    c3.metric("Net Flow", f"${day['flow_usd'].sum() / 1e9:,.2f}B")
+    c4.metric("ETFs con dato", f"{day['ticker'].nunique()}")
+    if session != default:
+        st.caption("⚠️ Sesión con cobertura parcial: algunos issuers aún no publican esta fecha.")
 
-    for tbl in (inflow_tbl, outflow_tbl):
-        tbl["Flow ($M)"] = (tbl["flow_usd"] / 1e6).round(1)
-
+    movers = top_movers(day, n=int(top_n), side="both", date=session).assign(
+        **{"Flow ($M)": lambda d: (d["flow_usd"] / 1e6).round(1),
+           "% AUM": lambda d: (d["flow_pct_aum"] * 100).round(2)}
+    )
+    cols = ["ticker", "name", "category", "Flow ($M)", "% AUM"]
     left, right = st.columns(2)
     with left:
         st.markdown("**Top Inflows**")
-        st.dataframe(
-            inflow_tbl[["ticker", "name", "category", "Flow ($M)"]],
-            hide_index=True, use_container_width=True,
-        )
+        st.dataframe(movers[movers["flow_usd"] > 0][cols], hide_index=True, width="stretch")
     with right:
         st.markdown("**Top Outflows**")
-        st.dataframe(
-            outflow_tbl[["ticker", "name", "category", "Flow ($M)"]],
-            hide_index=True, use_container_width=True,
-        )
+        st.dataframe(movers[movers["flow_usd"] < 0].sort_values("flow_usd")[cols],
+                     hide_index=True, width="stretch")
 
-    agg = aggregate_by_category(today_f, period_days=1)
+    agg = aggregate_by_category(day, period_days=1)
     if not agg.empty:
         fig = px.bar(
             agg.sort_values("flow_usd_b"),
-            x="flow_usd_b", y="category",
-            orientation="h",
-            color="flow_usd_b",
-            color_continuous_scale="RdYlGn",
-            color_continuous_midpoint=0,
+            x="flow_usd_b", y="category", orientation="h",
+            color="flow_usd_b", color_continuous_scale="RdYlGn", color_continuous_midpoint=0,
             labels={"flow_usd_b": "Flow ($B)", "category": ""},
-            title="Net Flows por Categoría — último día",
+            title=f"Net Flows por Categoría — {pd.Timestamp(session).date()}",
         )
         fig.update_layout(height=max(300, 28 * len(agg)))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with st.expander("Tabla completa"):
-        st.dataframe(today_f.sort_values("flow_usd", ascending=False), hide_index=True, use_container_width=True)
-        csv = today_f.to_csv(index=False).encode("utf-8")
+        st.dataframe(day.sort_values("flow_usd", ascending=False), hide_index=True, width="stretch")
         st.download_button(
             "Descargar CSV",
-            csv,
-            file_name=f"etf_flows_{pd.Timestamp(last_date).date()}.csv",
+            day.to_csv(index=False).encode("utf-8"),
+            file_name=f"etf_flows_{pd.Timestamp(session).date()}.csv",
             mime="text/csv",
         )

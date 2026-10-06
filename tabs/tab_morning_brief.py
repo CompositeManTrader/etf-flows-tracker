@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import streamlit as st
 
-from core.flows_calc import aggregate_by_category, detect_rotation, top_movers
+from core.flows_calc import aggregate_by_category, detect_rotation, latest_complete_date, top_movers
 
 _MODEL = "llama-3.3-70b-versatile"
 
@@ -15,11 +15,12 @@ def _build_prompt(flows: pd.DataFrame) -> str:
     if flows is None or flows.empty:
         return "Sin datos de flows disponibles."
 
-    last_date = flows["date"].max()
-    today = flows[flows["date"] == last_date]
+    last_date = latest_complete_date(flows)
+    if last_date is None:
+        return "Sin datos de flows disponibles."
 
-    inflows = top_movers(today, n=10, side="inflow")[["ticker", "name", "category", "flow_usd"]]
-    outflows = top_movers(today, n=10, side="outflow")[["ticker", "name", "category", "flow_usd"]]
+    inflows = top_movers(flows, n=10, side="inflow", date=last_date)[["ticker", "name", "category", "flow_usd"]]
+    outflows = top_movers(flows, n=10, side="outflow", date=last_date)[["ticker", "name", "category", "flow_usd"]]
     cats = aggregate_by_category(flows, period_days=1)
     rot = detect_rotation(flows, short=5, long=20).head(5)
 

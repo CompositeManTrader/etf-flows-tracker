@@ -1,130 +1,39 @@
-"""yfinance loaders: shares outstanding, daily prices, intraday quotes."""
-from __future__ import annotations
+"""yfinance loaders: daily prices and intraday quotes.
 
-import time
+yfinance is NOT used for shares outstanding: its ETF values are frozen for
+months (see data/sources for the official issuer feeds).
+"""
+from __future__ import annotations
 
 import pandas as pd
 import yfinance as yf
 
 from config.universe import get_tickers
-from data.scrapers import try_scrape
 
 
 def _utc_now_naive() -> pd.Timestamp:
-    """Replacement for deprecated pd.Timestamp.utcnow()."""
     return pd.Timestamp.now(tz="UTC").tz_localize(None)
-
-
-def _safe_get(obj, attr: str, default=None):
-    try:
-        return getattr(obj, attr, default)
-    except Exception:  # noqa: BLE001
-        return default
-
-
-def _last_shares_full(ticker_obj: yf.Ticker) -> float | None:
-    """Try Ticker.get_shares_full() and return the most recent value if any."""
-    try:
-        end = pd.Timestamp.utcnow().normalize()
-        start = end - pd.Timedelta(days=30)
-        series = ticker_obj.get_shares_full(start=start, end=end)
-    except Exception:  # noqa: BLE001
-        return None
-    if series is None or (hasattr(series, "empty") and series.empty):
-        return None
-    try:
-        # series is indexed by datetime; take last non-null
-        return float(series.dropna().iloc[-1])
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def fetch_shares_outstanding(tickers: list[str] | None = None, sleep: float = 0.15) -> pd.DataFrame:
-    """Fetch shares outstanding with a layered fallback chain:
-
-    1. Ticker.info["sharesOutstanding"]
-    2. Ticker.info["impliedSharesOutstanding"]
-    3. Ticker.fast_info.shares
-    4. Ticker.get_shares_full() last value (historical, last 30d window)
-    5. Issuer-specific scraper (iShares JSON, SPDR XLSX, ARK/ProShares HTML,
-       Vanguard API, VanEck HTML) — see data.scrapers.try_scrape
-    """
-    if tickers is None:
-        tickers = get_tickers()
-
-    rows = []
-    fetched_at = _utc_now_naive()
-    for t in tickers:
-        shares: float | None = None
-        source = "missing"
-        try:
-            t_obj = yf.Ticker(t)
-            try:
-                info = t_obj.info or {}
-            except Exception:  # noqa: BLE001
-                info = {}
-            shares = info.get("sharesOutstanding")
-            if shares is not None:
-                source = "info.sharesOutstanding"
-            if shares is None:
-                shares = info.get("impliedSharesOutstanding")
-                if shares is not None:
-                    source = "info.impliedSharesOutstanding"
-            if shares is None:
-                fi = _safe_get(t_obj, "fast_info")
-                if fi is not None:
-                    fi_shares = _safe_get(fi, "shares")
-                    if fi_shares is not None and pd.notna(fi_shares):
-                        shares = float(fi_shares)
-                        source = "fast_info.shares"
-            if shares is None:
-                hist = _last_shares_full(t_obj)
-                if hist is not None:
-                    shares = hist
-                    source = "get_shares_full"
-        except Exception as e:  # noqa: BLE001
-            source = f"yfinance_error: {type(e).__name__}: {e}"
-
-        if shares is None:
-            scraped, scrape_source = try_scrape(t)
-            if scraped is not None:
-                shares = scraped
-                source = scrape_source
-            elif source == "missing":
-                source = scrape_source
-
-        rows.append({
-            "ticker": t,
-            "shares_outstanding": shares,
-            "fetched_at": fetched_at,
-            "source": source,
-        })
-        time.sleep(sleep)
-
-    return pd.DataFrame(rows)
 
 
 def fetch_prices(
     tickers: list[str] | None = None,
     period: str = "120d",
     interval: str = "1d",
+    start: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
-    """Fetch raw (unadjusted) close prices for flow calculation.
-
-    auto_adjust=False is critical: Flow_t = ΔShares × Close_t needs the actual
-    market close on day t, not the dividend-back-adjusted close.
-    """
+    """Raw (unadjusted) daily close + volume. Pass `start` to override `period`."""
     if tickers is None:
         tickers = get_tickers()
 
+    kwargs = {"start": pd.Timestamp(start).strftime("%Y-%m-%d")} if start is not None else {"period": period}
     raw = yf.download(
         tickers=tickers,
-        period=period,
         interval=interval,
         group_by="ticker",
         auto_adjust=False,
         progress=False,
         threads=True,
+        **kwargs,
     )
 
     if raw is None or raw.empty:
@@ -144,9 +53,7 @@ def fetch_prices(
             sub["ticker"] = t
             frames.append(sub[["date", "ticker", "close", "volume"]])
     else:
-        # single ticker case
-        sub = raw[["Close", "Volume"]].copy()
-        sub = sub.dropna(how="all").reset_index().rename(
+        sub = raw[["Close", "Volume"]].dropna(how="all").reset_index().rename(
             columns={"Date": "date", "Close": "close", "Volume": "volume"}
         )
         sub["ticker"] = tickers[0]
@@ -157,24 +64,16 @@ def fetch_prices(
 
     out = pd.concat(frames, ignore_index=True)
     out["date"] = pd.to_datetime(out["date"])
-    tz = getattr(out["date"].dt, "tz", None)
-    if tz is not None:
-        try:
-            out["date"] = out["date"].dt.tz_convert(None)
-        except (TypeError, AttributeError):
-            try:
-                out["date"] = out["date"].dt.tz_localize(None)
-            except (TypeError, AttributeError):
-                pass
+    if getattr(out["date"].dt, "tz", None) is not None:
+        out["date"] = out["date"].dt.tz_convert(None)
     return out
 
 
 def fetch_intraday_quote(tickers: list[str] | None = None) -> pd.DataFrame:
     """Last-session quote + ADV20 + relative volume.
 
-    Note: with interval='1d', last_session_volume is the most recent COMPLETED
-    trading session (yesterday if pre-market, today if post-close), not a true
-    intraday read.
+    With interval='1d', last_session_volume is the most recent COMPLETED
+    trading session, not a true intraday read.
     """
     if tickers is None:
         tickers = get_tickers()
@@ -190,8 +89,6 @@ def fetch_intraday_quote(tickers: list[str] | None = None) -> pd.DataFrame:
     rows = []
     for t, grp in prices.groupby("ticker"):
         grp = grp.sort_values("date")
-        if grp.empty:
-            continue
         last = grp.iloc[-1]
         adv20 = grp["volume"].tail(20).mean()
         last_vol = float(last["volume"]) if pd.notna(last["volume"]) else None
@@ -206,17 +103,3 @@ def fetch_intraday_quote(tickers: list[str] | None = None) -> pd.DataFrame:
         })
 
     return pd.DataFrame(rows)
-
-
-def check_coverage(df_shares: pd.DataFrame) -> dict:
-    total = len(df_shares)
-    missing_mask = df_shares["shares_outstanding"].isna()
-    covered = int((~missing_mask).sum())
-    missing = df_shares.loc[missing_mask, "ticker"].tolist()
-    pct = (covered / total * 100) if total else 0.0
-    return {
-        "total": total,
-        "covered": covered,
-        "coverage_pct": pct,
-        "missing": missing,
-    }

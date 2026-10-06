@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from core.flows_calc import detect_rotation
+from core.flows_calc import aggregate_by_category, detect_rotation, latest_complete_date
 
 
 def render(flows: pd.DataFrame) -> None:
@@ -20,16 +20,13 @@ def render(flows: pd.DataFrame) -> None:
         st.warning("Sin datos de flows válidos.")
         return
 
-    max_date = f["date"].max()
     windows = {"1D": 1, "5D": 5, "20D": 20, "60D": 60}
+    st.caption(f"Ventanas en sesiones de trading hasta la última sesión completa ({latest_complete_date(f).date()}).")
 
     rows = []
     for label, days in windows.items():
-        cutoff = max_date - pd.Timedelta(days=days - 1)
-        sub = f[f["date"] >= cutoff]
-        agg = sub.groupby("category")["flow_usd"].sum() / 1e9
-        for cat, val in agg.items():
-            rows.append({"category": cat, "window": label, "flow_b": float(val)})
+        for _, r in aggregate_by_category(f, period_days=days).iterrows():
+            rows.append({"category": r["category"], "window": label, "flow_b": float(r["flow_usd_b"])})
 
     grid = pd.DataFrame(rows)
     if grid.empty:
@@ -49,7 +46,7 @@ def render(flows: pd.DataFrame) -> None:
         title="Heatmap: Flows acumulados por categoría × ventana",
     )
     fig.update_layout(height=max(400, 32 * len(pivot)))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.markdown("### Rotation Signal (5D vs 20D)")
     rot = detect_rotation(f, short=5, long=20)
@@ -67,7 +64,7 @@ def render(flows: pd.DataFrame) -> None:
         labels={"rotation_b": "Rotation ($B)", "category": ""},
     )
     fig2.update_layout(height=max(300, 28 * len(rot)))
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
     with st.expander("Tabla detalle rotación"):
-        st.dataframe(rot.round(2), hide_index=True, use_container_width=True)
+        st.dataframe(rot.round(2), hide_index=True, width="stretch")

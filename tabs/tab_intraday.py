@@ -53,9 +53,9 @@ def render() -> None:
         title="Top 20 — Volumen Relativo",
     )
     fig.update_layout(height=600)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     with st.expander("Tabla completa"):
         out = df[["ticker", "name", "category", "last_price", "last_session_volume", "adv20", "rel_volume", "as_of"]].copy()
         out["rel_volume"] = out["rel_volume"].round(2)
-        st.dataframe(out, hide_index=True, use_container_width=True)
+        st.dataframe(out, hide_index=True, width="stretch")

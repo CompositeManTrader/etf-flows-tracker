@@ -2,8 +2,13 @@ name: Daily ETF Snapshot
 
 on:
   schedule:
-    - cron: '30 22 * * 1-5'  # 5:30 PM ET (DST), lun-vie
+    - cron: '30 23 * * 1-5'  # evening: issuers have struck NAV/shares for the session
+    - cron: '0 12 * * 2-6'   # next morning: catches late publishers and fills any missed run
   workflow_dispatch:
+
+concurrency:
+  group: daily-snapshot
+  cancel-in-progress: false
 
 jobs:
   snapshot:
@@ -23,6 +28,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/snapshots/
-          git diff --quiet --cached || git commit -m "chore: daily snapshot $(date -u +%F)"
-          git push
+          git add data/shares/
+          git diff --quiet --cached && exit 0
+          git commit -m "chore: shares snapshot $(date -u +%F_%H%M)"
+          for i in 1 2 3; do git pull --rebase -q && git push && exit 0; sleep 5; done
+          exit 1
