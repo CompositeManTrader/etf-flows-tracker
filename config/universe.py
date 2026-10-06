@@ -125,6 +125,26 @@ ETF_UNIVERSE: dict[str, dict[str, str]] = {
 }
 
 
+# Desk "thermometer": the ETFs whose flows say most about institutional positioning.
+WATCHLIST = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "HYG", "LQD", "TLT", "BIL", "GLD", "EEM", "IBIT", "UVXY"]
+
+# Risk-appetite buckets. Flows into "on" add to the risk-on side, "off" to risk-off;
+# "neutral" (IG/MBS credit, commodities ex-gold, currency-hedged equity) is ignored.
+_RISK_OFF_TICKERS = {"TLT", "IEF", "SHY", "SHV", "BIL", "BSV", "AGG", "BND", "TIP", "IGOV", "BNDX",
+                     "GLD", "IAU", "UVXY", "VIXY", "VXX", "USMV"}
+_RISK_ON_TICKERS = {"HYG", "JNK", "EMB", "EMLC", "SVXY", "SVOL"}
+_RISK_ON_CATEGORIES = {"US Equity Broad", "US Sectors", "US Factor", "Thematic", "Intl DM", "EM",
+                       "Crypto", "Real Estate"}
+
+
+def risk_bucket(ticker: str) -> str:
+    if ticker in _RISK_OFF_TICKERS:
+        return "off"
+    if ticker in _RISK_ON_TICKERS:
+        return "on"
+    return "on" if ETF_UNIVERSE.get(ticker, {}).get("category") in _RISK_ON_CATEGORIES else "neutral"
+
+
 def get_universe() -> dict[str, dict[str, str]]:
     return ETF_UNIVERSE
 

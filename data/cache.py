@@ -15,6 +15,7 @@ SHARES_DIR = Path(__file__).parent / "shares"
 SHARES_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_FILE = SHARES_DIR / "history.parquet"
 STATUS_FILE = SHARES_DIR / "last_run_status.parquet"
+MONTHLY_FILE = SHARES_DIR / "vanguard_monthly.parquet"
 
 RETENTION_DAYS = 400
 
@@ -57,3 +58,28 @@ def load_status() -> pd.DataFrame:
 def latest_as_of() -> pd.Timestamp | None:
     h = load_history()
     return None if h.empty else pd.Timestamp(h["as_of_date"].max())
+
+
+def load_monthly() -> pd.DataFrame:
+    if not MONTHLY_FILE.exists():
+        return pd.DataFrame(columns=["ticker", "as_of_date", "shares_outstanding", "nav", "fetched_at"])
+    df = pd.read_parquet(MONTHLY_FILE)
+    df["as_of_date"] = pd.to_datetime(df["as_of_date"])
+    return df
+
+
+def upsert_monthly(new: pd.DataFrame) -> pd.DataFrame:
+    """Month-end observations keyed by (ticker, as_of_date); kept indefinitely (12 rows/year/ticker)."""
+    new = new.copy()
+    new["as_of_date"] = pd.to_datetime(new["as_of_date"]).dt.normalize()
+    combined = pd.concat([load_monthly(), new], ignore_index=True)
+    combined["as_of_date"] = pd.to_datetime(combined["as_of_date"])  # concat with an empty frame drops the dtype
+    combined["fetched_at"] = pd.to_datetime(combined["fetched_at"])
+    # keep the first NAV we saw for a month end: later runs may no longer find it in the price history
+    combined = combined.sort_values("fetched_at")
+    nav_first = combined.dropna(subset=["nav"]).drop_duplicates(["ticker", "as_of_date"], keep="first")
+    combined = combined.drop_duplicates(["ticker", "as_of_date"], keep="last").drop(columns=["nav"])
+    combined = combined.merge(nav_first[["ticker", "as_of_date", "nav"]], on=["ticker", "as_of_date"], how="left")
+    combined = combined.sort_values(["ticker", "as_of_date"]).reset_index(drop=True)
+    combined.to_parquet(MONTHLY_FILE, index=False)
+    return combined

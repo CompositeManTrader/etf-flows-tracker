@@ -60,11 +60,28 @@ Además: rechazo de valores <100k shares y eliminación de picos aislados. Como 
 │   ├── shares_loader.py          # Fetch + validación por ticker
 │   ├── cache.py                  # Parquet keyed por (ticker, as_of_date)
 │   ├── price_loader.py           # yfinance: sólo precios y volumen
-│   ├── shares/                   # history.parquet + last_run_status.parquet (committed)
+│   ├── shares/                   # history.parquet, vanguard_monthly.parquet, last_run_status.parquet
 │   └── legacy/snapshots_v1/      # Histórico v1 descartado (sólo referencia)
-├── tabs/                         # Daily Flows, Intraday, Rotation, Signals, Brief, Calidad de datos
-└── jobs/daily_snapshot.py        # Job del cron
+├── ui/theme.py                   # Tokens de color, template Plotly, CSS, formato de números
+├── views/                        # Páginas: resumen, rotación, señales, ETF, Vanguard mensual,
+│                                 # volumen relativo, calidad, metodología
+├── .streamlit/config.toml        # Tema oscuro
+└── jobs/daily_snapshot.py        # Job del cron (diario + cierre de mes Vanguard)
 ```
+
+## Páginas
+
+| Página | Para qué |
+|---|---|
+| **Resumen** | KPIs de la sesión, sesgo risk-on/off, flow por categoría, termómetro de la mesa (watchlist con 1D/5D/20D, z y últimas 20 sesiones), top entradas/salidas, mapa de flows |
+| **Rotación** | Heatmap categoría × 1D/5D/20D/60D, flows acumulados por categoría, aceleración 5 vs. 15 sesiones previas |
+| **Señales** | Flows anómalos para cada ETF (z-score de % AUM) |
+| **ETF** | Detalle de un ETF: flow diario y acumulado, shares oficiales, NAV, datos por sesión |
+| **Vanguard mensual** | VOO, VTI y resto de Vanguard: flow de cierre de mes a cierre de mes |
+| **Volumen relativo** | Volumen ÷ ADV20 para los 95 ETFs (proxy de presión, no es flow) |
+| **Calidad** | Fuente, rezago y flags de cada ETF |
+
+Los controles del sidebar (sesión, unidad $ / % AUM, categorías) aplican a todas las páginas.
 
 ## Cron (GitHub Actions)
 
@@ -82,9 +99,8 @@ python jobs/daily_snapshot.py
 streamlit run app.py
 ```
 
-Morning brief: exportar `GROQ_API_KEY` o ponerlo en los secrets de Streamlit Cloud.
-
 ## Historia
 
 - **v1 (may–oct 2026):** shares de yfinance + scrapers como fallback. Una auditoría en oct-2026 mostró que las shares de yfinance para ETFs no cambiaban (39 tickers sin un solo cambio en 103 días), que casi todos los flows venían de cambios de fuente (p. ej. ±$73B diarios en IWD) y que el cron retrasado fechaba los viernes como sábado. Ese histórico se archivó en `data/legacy/`.
 - **v2 (oct 2026):** fuentes oficiales por issuer, fechas as-of, controles de calidad, NAV y % AUM.
+- **v2.1 (oct 2026):** Invesco (QQQ), vista mensual de Vanguard, rediseño completo (navegación por páginas, tema oscuro, controles globales); se retiró el Morning Brief.

@@ -17,7 +17,7 @@ VALID_QUALITY = ("ok", "multi_day")
 _FLOW_COLS = [
     "date", "ticker", "name", "category", "subcategory", "issuer", "source",
     "shares_outstanding", "prev_shares", "delta_shares", "nav", "close", "price", "price_basis",
-    "volume", "aum", "flow_usd", "flow_pct_aum", "gap_days", "quality", "as_of_inferred",
+    "volume", "aum", "aum_prev", "flow_usd", "flow_pct_aum", "gap_days", "quality", "as_of_inferred",
 ]
 _HOLIDAYS = np.array(sorted(NYSE_HOLIDAYS), dtype="datetime64[D]")
 
@@ -122,7 +122,8 @@ def compute_daily_flows(shares_history: pd.DataFrame, prices: pd.DataFrame) -> p
     valid = h["quality"].isin(VALID_QUALITY)
     h["flow_usd"] = (h["delta_shares"] * h["price"]).where(valid)
     h["aum"] = h["shares_outstanding"] * h["price"]
-    h["flow_pct_aum"] = h["flow_usd"] / (h["prev_shares"] * h["prev_price"])
+    h["aum_prev"] = h["prev_shares"] * h["prev_price"]
+    h["flow_pct_aum"] = h["flow_usd"] / h["aum_prev"]
     if "as_of_inferred" not in h:
         h["as_of_inferred"] = False
 
@@ -248,3 +249,84 @@ def top_movers(flows: pd.DataFrame, n: int = 10, side: str = "both", date=None) 
         return today.nsmallest(n, "flow_usd")
     both = pd.concat([today.nlargest(n, "flow_usd"), today.nsmallest(n, "flow_usd")], ignore_index=True)
     return both.drop_duplicates(subset="ticker")
+
+
+def sessions_up_to(flows: pd.DataFrame, session, n: int) -> list[pd.Timestamp]:
+    """The last `n` trading sessions present in `flows` that are <= session."""
+    dates = sorted(d for d in pd.to_datetime(flows["date"].dropna().unique()) if d <= pd.Timestamp(session))
+    return dates[-n:]
+
+
+def window_flows(flows: pd.DataFrame, session, windows=(1, 5, 20, 60)) -> pd.DataFrame:
+    """Per-ticker net flow summed over the last N sessions ending at `session` (one column per window)."""
+    v = flows.dropna(subset=["flow_usd"])
+    out = {}
+    for n in windows:
+        dates = sessions_up_to(v, session, n)
+        out[f"{n}D"] = v[v["date"].isin(dates)].groupby("ticker")["flow_usd"].sum()
+    return pd.DataFrame(out)
+
+
+def category_flows(flows: pd.DataFrame, session, n: int = 1) -> pd.DataFrame:
+    """Net flow per category over the last `n` sessions ending at `session`, plus % of category AUM."""
+    v = flows.dropna(subset=["flow_usd"])
+    dates = sessions_up_to(v, session, n)
+    if not dates:
+        return pd.DataFrame(columns=["category", "flow_usd", "aum", "flow_pct"])
+    w = v[v["date"].isin(dates)]
+    flow = w.groupby("category")["flow_usd"].sum()
+    # AUM at the start of the window: each ticker's aum_prev on its first session in the window
+    aum = w.sort_values("date").groupby("ticker").first().groupby("category")["aum_prev"].sum()
+    out = pd.concat([flow, aum.rename("aum")], axis=1).reset_index().rename(columns={"index": "category"})
+    out["flow_pct"] = out["flow_usd"] / out["aum"]
+    return out.sort_values("flow_usd", ascending=False).reset_index(drop=True)
+
+
+def risk_appetite(day: pd.DataFrame) -> tuple[float, float, float]:
+    """(score, risk_on_flow, risk_off_flow) for one session; score in [-1, 1].
+
+    score = (risk-on − risk-off) / (|risk-on| + |risk-off|); buckets in config.universe.risk_bucket.
+    """
+    from config.universe import risk_bucket
+
+    d = day.dropna(subset=["flow_usd"])
+    buckets = d["ticker"].map(risk_bucket)
+    on = d.loc[buckets == "on", "flow_usd"].sum()
+    off = d.loc[buckets == "off", "flow_usd"].sum()
+    denom = abs(on) + abs(off)
+    return ((on - off) / denom if denom else 0.0), on, off
+
+
+def compute_monthly_flows(monthly: pd.DataFrame, prices: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Month-end to month-end flows: (S_m − S_{m−1}) × NAV_m, with the same split check as daily."""
+    cols = ["date", "ticker", "name", "category", "shares_outstanding", "prev_shares", "delta_shares",
+            "price", "aum", "aum_prev", "flow_usd", "flow_pct_aum", "quality"]
+    if monthly is None or monthly.empty:
+        return pd.DataFrame(columns=cols)
+
+    m = monthly.copy()
+    m["date"] = _to_naive_date(m["as_of_date"])
+    m = m.sort_values(["ticker", "date"])
+    if prices is not None and not prices.empty:
+        p = prices.copy()
+        p["date"] = _to_naive_date(p["date"])
+        m = m.merge(p[["date", "ticker", "close"]], on=["date", "ticker"], how="left")
+    else:
+        m["close"] = np.nan
+    m["price"] = pd.to_numeric(m["nav"], errors="coerce").fillna(m["close"])
+
+    g = m.groupby("ticker")
+    m["prev_shares"] = g["shares_outstanding"].shift(1)
+    m["prev_price"] = g["price"].shift(1)
+    m["delta_shares"] = m["shares_outstanding"] - m["prev_shares"]
+    ratio = m["shares_outstanding"] / m["prev_shares"]
+    split = ((ratio - 1).abs() > JUMP_THRESHOLD) & ((ratio * m["price"] / m["prev_price"] - 1).abs() < SPLIT_TOL)
+    m["quality"] = np.select([m["prev_shares"].isna(), split, m["price"].isna()],
+                             ["first", "split", "no_price"], default="ok")
+    ok = m["quality"] == "ok"
+    m["flow_usd"] = (m["delta_shares"] * m["price"]).where(ok)
+    m["aum"] = m["shares_outstanding"] * m["price"]
+    m["aum_prev"] = m["prev_shares"] * m["prev_price"]
+    m["flow_pct_aum"] = m["flow_usd"] / m["aum_prev"]
+    m = _enrich(m)
+    return m[cols].sort_values(["date", "ticker"]).reset_index(drop=True)
