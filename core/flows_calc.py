@@ -137,7 +137,7 @@ def session_coverage(flows: pd.DataFrame) -> pd.Series:
     return v.groupby("date")["ticker"].nunique().sort_index()
 
 
-def latest_complete_date(flows: pd.DataFrame, min_ratio: float = 0.6) -> pd.Timestamp | None:
+def latest_complete_date(flows: pd.DataFrame, min_ratio: float = 0.8) -> pd.Timestamp | None:
     """Most recent session where at least `min_ratio` of the recently-reporting tickers have a flow.
 
     Issuers publish with different lags (e.g. SPDR a day after iShares), so the

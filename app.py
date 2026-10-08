@@ -10,7 +10,7 @@ from data.cache import HISTORY_FILE, MONTHLY_FILE, load_history, load_monthly, l
 from data.price_loader import fetch_prices
 from ui import theme
 from views import (
-    Ctx, etf_detail, methodology, overview, quality, rotation, signals, vanguard_monthly, volume,
+    Ctx, etf_detail, methodology, overview, quality, rotation, sectors, signals, vanguard_monthly, volume,
 )
 
 st.set_page_config(page_title="ETF Flows Tracker", page_icon=":material/monitoring:", layout="wide")
@@ -46,7 +46,7 @@ status = load_status()
 
 with st.sidebar:
     st.markdown('<div class="desk-brand">ETF <span>Flows</span> Tracker</div>', unsafe_allow_html=True)
-    st.caption("Creaciones y redenciones oficiales de 95 ETFs")
+    st.caption(f"Creaciones y redenciones oficiales de {len(get_tickers())} ETFs")
 
     session = None
     if not flows.empty:
@@ -81,15 +81,22 @@ with st.sidebar:
 ctx = Ctx(flows=flows, history=load_history(), status=status, monthly=monthly, session=session,
           categories=cats or all_cats, unit=unit or "usd")
 
-pages = [
-    st.Page(lambda: overview.render(ctx), title="Resumen", icon=":material/dashboard:", url_path="resumen", default=True),
-    st.Page(lambda: rotation.render(ctx), title="Rotación", icon=":material/swap_horiz:", url_path="rotacion"),
-    st.Page(lambda: signals.render(ctx), title="Señales", icon=":material/bolt:", url_path="senales"),
-    st.Page(lambda: etf_detail.render(ctx), title="ETF", icon=":material/query_stats:", url_path="etf"),
-    st.Page(lambda: vanguard_monthly.render(ctx), title="Vanguard mensual", icon=":material/calendar_month:",
-            url_path="vanguard"),
-    st.Page(lambda: volume.render(ctx), title="Volumen relativo", icon=":material/equalizer:", url_path="volumen"),
-    st.Page(lambda: quality.render(ctx), title="Calidad", icon=":material/verified:", url_path="calidad"),
-    st.Page(lambda: methodology.render(ctx), title="Metodología", icon=":material/menu_book:", url_path="metodologia"),
-]
+pages = {
+    "Flows": [
+        st.Page(lambda: overview.render(ctx), title="Resumen", icon=":material/dashboard:", url_path="resumen",
+                default=True),
+        st.Page(lambda: sectors.render(ctx), title="Sectores", icon=":material/donut_small:", url_path="sectores"),
+        st.Page(lambda: rotation.render(ctx), title="Rotación", icon=":material/swap_horiz:", url_path="rotacion"),
+        st.Page(lambda: signals.render(ctx), title="Señales", icon=":material/bolt:", url_path="senales"),
+        st.Page(lambda: etf_detail.render(ctx), title="ETF", icon=":material/query_stats:", url_path="etf"),
+    ],
+    "Más": [
+        st.Page(lambda: vanguard_monthly.render(ctx), title="Vanguard mensual", icon=":material/calendar_month:",
+                url_path="vanguard"),
+        st.Page(lambda: volume.render(ctx), title="Volumen relativo", icon=":material/equalizer:", url_path="volumen"),
+        st.Page(lambda: quality.render(ctx), title="Calidad", icon=":material/verified:", url_path="calidad"),
+        st.Page(lambda: methodology.render(ctx), title="Metodología", icon=":material/menu_book:",
+                url_path="metodologia"),
+    ],
+}
 st.navigation(pages, position="top").run()

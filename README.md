@@ -1,6 +1,6 @@
 # 📊 ETF Flows Tracker
 
-Dashboard de Streamlit que trackea **flows (creations / redemptions)** de 95 ETFs principales (US broad, sectores, factor, internacionales, EM, bonds, commodities, REITs, crypto, volatilidad, defensivos).
+Dashboard de Streamlit que trackea **flows (creations / redemptions)** de 109 ETFs (US broad, 11 sectores + 14 industrias, factor, internacionales, EM, bonds, commodities, REITs, crypto, volatilidad, defensivos).
 
 ## Fórmula
 
@@ -17,7 +17,7 @@ Flow % AUM = Flow_t / (Shares_{t-1} × NAV_{t-1})
 
 | Fuente | ETFs | Historial |
 |---|---|---|
-| SPDR `navhist-us-en-{ticker}.xlsx` | 17 (SPY, DIA, XL*, GLD, XBI, JNK, BIL) | Diario, ~1 año de backfill |
+| SPDR `navhist-us-en-{ticker}.xlsx` | 31 (SPY, DIA, XL*, 14 industrias KRE…XHE, GLD, XBI, JNK, BIL) | Diario, ~1 año de backfill |
 | iShares página de producto (`Shares Outstanding … as of …` + NAV JSON-LD) | 45 | Sólo valor actual; se acumula diario |
 | ProShares `{ticker}-historical_nav.csv` | 3 (UVXY, SVXY, VIXY) | Diario, ~1 año de backfill |
 | Invesco API de precios (`dng-api`, por CUSIP) | 5 (QQQ, QQQM, DBA, DBC, PDBC) | Sólo valor actual |
@@ -73,6 +73,7 @@ Además: rechazo de valores <100k shares y eliminación de picos aislados. Como 
 
 | Página | Para qué |
 |---|---|
+| **Sectores** | 11 sectores GICS (Select Sector SPDR + ETFs de industria): lectura de la sesión, tablero con 1D/5D/20D/60D, z y rachas, persistencia 20 sesiones, flow vs. rendimiento (cuadrantes) e industrias dentro de cada sector |
 | **Resumen** | KPIs de la sesión, sesgo risk-on/off, flow por categoría, termómetro de la mesa (watchlist con 1D/5D/20D, z y últimas 20 sesiones), top entradas/salidas, mapa de flows |
 | **Rotación** | Heatmap categoría × 1D/5D/20D/60D, flows acumulados por categoría, aceleración 5 vs. 15 sesiones previas |
 | **Señales** | Flows anómalos para cada ETF (z-score de % AUM) |

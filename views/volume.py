@@ -20,7 +20,7 @@ def _quotes() -> pd.DataFrame:
 
 
 def render(ctx: Ctx) -> None:
-    theme.header("Volumen relativo", "Volumen de la última sesión ÷ promedio de 20 días · cubre los 95 ETFs",
+    theme.header("Volumen relativo", "Volumen de la última sesión ÷ promedio de 20 días · cubre todo el universo",
                  chips=[("proxy de presión, no es flow", "warn")])
     st.caption("Útil para ver presión en ETFs sin shares diarias (VOO, VTI, ARKK…) y para anticipar creaciones "
                "o redenciones antes de que el issuer publique. Un volumen alto no indica dirección.")

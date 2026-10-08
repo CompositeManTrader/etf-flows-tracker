@@ -1,4 +1,4 @@
-"""ETF universe definition: ~95 ETFs categorized by asset class and theme."""
+"""ETF universe definition: ETFs categorized by asset class and theme, plus a GICS sector map."""
 from __future__ import annotations
 
 ETF_UNIVERSE: dict[str, dict[str, str]] = {
@@ -24,6 +24,22 @@ ETF_UNIVERSE: dict[str, dict[str, str]] = {
     "XLB":  {"category": "US Sectors",      "subcategory": "Materials",           "issuer": "SPDR", "name": "Materials Select Sector SPDR"},
     "XLRE": {"category": "US Sectors",      "subcategory": "Real Estate",         "issuer": "SPDR", "name": "Real Estate Select Sector SPDR"},
     "XLC":  {"category": "US Sectors",      "subcategory": "Communications",      "issuer": "SPDR", "name": "Communication Services Select Sector SPDR"},
+
+    # US Industries SPDR (14) — sub-sector detail, all with official daily history
+    "KRE":  {"category": "US Industries", "subcategory": "Regional Banks",       "issuer": "SPDR", "name": "SPDR S&P Regional Banking"},
+    "KBE":  {"category": "US Industries", "subcategory": "Banks",                "issuer": "SPDR", "name": "SPDR S&P Bank"},
+    "KIE":  {"category": "US Industries", "subcategory": "Insurance",            "issuer": "SPDR", "name": "SPDR S&P Insurance"},
+    "XOP":  {"category": "US Industries", "subcategory": "Oil & Gas E&P",        "issuer": "SPDR", "name": "SPDR S&P Oil & Gas Exploration & Production"},
+    "XES":  {"category": "US Industries", "subcategory": "Oil & Gas Services",   "issuer": "SPDR", "name": "SPDR S&P Oil & Gas Equipment & Services"},
+    "XME":  {"category": "US Industries", "subcategory": "Metals & Mining",      "issuer": "SPDR", "name": "SPDR S&P Metals & Mining"},
+    "XHB":  {"category": "US Industries", "subcategory": "Homebuilders",         "issuer": "SPDR", "name": "SPDR S&P Homebuilders"},
+    "XRT":  {"category": "US Industries", "subcategory": "Retail",               "issuer": "SPDR", "name": "SPDR S&P Retail"},
+    "XAR":  {"category": "US Industries", "subcategory": "Aerospace & Defense",  "issuer": "SPDR", "name": "SPDR S&P Aerospace & Defense"},
+    "XTN":  {"category": "US Industries", "subcategory": "Transportation",       "issuer": "SPDR", "name": "SPDR S&P Transportation"},
+    "XSD":  {"category": "US Industries", "subcategory": "Semiconductors",       "issuer": "SPDR", "name": "SPDR S&P Semiconductor"},
+    "XSW":  {"category": "US Industries", "subcategory": "Software & Services",  "issuer": "SPDR", "name": "SPDR S&P Software & Services"},
+    "XPH":  {"category": "US Industries", "subcategory": "Pharmaceuticals",      "issuer": "SPDR", "name": "SPDR S&P Pharmaceuticals"},
+    "XHE":  {"category": "US Industries", "subcategory": "Health Care Equipment", "issuer": "SPDR", "name": "SPDR S&P Health Care Equipment"},
 
     # US Factor (10)
     "MTUM": {"category": "US Factor", "subcategory": "Momentum",     "issuer": "iShares", "name": "iShares MSCI USA Momentum"},
@@ -133,8 +149,39 @@ WATCHLIST = ["SPY", "QQQ", "IWM", "XLK", "XLF", "XLE", "HYG", "LQD", "TLT", "BIL
 _RISK_OFF_TICKERS = {"TLT", "IEF", "SHY", "SHV", "BIL", "BSV", "AGG", "BND", "TIP", "IGOV", "BNDX",
                      "GLD", "IAU", "UVXY", "VIXY", "VXX", "USMV"}
 _RISK_ON_TICKERS = {"HYG", "JNK", "EMB", "EMLC", "SVXY", "SVOL"}
-_RISK_ON_CATEGORIES = {"US Equity Broad", "US Sectors", "US Factor", "Thematic", "Intl DM", "EM",
-                       "Crypto", "Real Estate"}
+_RISK_ON_CATEGORIES = {"US Equity Broad", "US Sectors", "US Industries", "US Factor", "Thematic", "Intl DM",
+                       "EM", "Crypto", "Real Estate"}
+
+
+# GICS sector per ETF, for sector-level flow aggregation. The Select Sector SPDR is
+# each sector's benchmark (its NAV return is the sector's performance).
+SECTOR_BENCHMARK = {
+    "Technology": "XLK", "Financials": "XLF", "Energy": "XLE", "Healthcare": "XLV",
+    "Industrials": "XLI", "Cons. Discretionary": "XLY", "Cons. Staples": "XLP", "Utilities": "XLU",
+    "Materials": "XLB", "Real Estate": "XLRE", "Communications": "XLC",
+}
+SECTOR_ES = {
+    "Technology": "Tecnología", "Financials": "Financiero", "Energy": "Energía", "Healthcare": "Salud",
+    "Industrials": "Industrial", "Cons. Discretionary": "Consumo discrecional", "Cons. Staples": "Consumo básico",
+    "Utilities": "Utilities", "Materials": "Materiales", "Real Estate": "Bienes raíces",
+    "Communications": "Comunicaciones",
+}
+_SECTOR_OF = {
+    **{etf: sector for sector, etf in SECTOR_BENCHMARK.items()},
+    "KRE": "Financials", "KBE": "Financials", "KIE": "Financials", "REM": "Financials",
+    "XOP": "Energy", "XES": "Energy",
+    "XME": "Materials",
+    "XHB": "Cons. Discretionary", "XRT": "Cons. Discretionary",
+    "XAR": "Industrials", "XTN": "Industrials",
+    "XSD": "Technology", "XSW": "Technology", "SMH": "Technology", "SOXX": "Technology",
+    "XPH": "Healthcare", "XHE": "Healthcare", "XBI": "Healthcare", "IBB": "Healthcare",
+    "IYR": "Real Estate", "VNQ": "Real Estate",
+}
+
+
+def sector_of(ticker: str) -> str | None:
+    """GICS sector for sector/industry ETFs; None for broad, factor, bond, intl, etc."""
+    return _SECTOR_OF.get(ticker)
 
 
 def risk_bucket(ticker: str) -> str:
