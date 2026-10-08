@@ -217,7 +217,7 @@ def render(ctx: Ctx) -> None:
         st.info("Sin datos sectoriales.")
         return
     st.caption("11 sectores GICS. Cada sector suma su Select Sector SPDR, su ETF sectorial de iShares y los ETFs de "
-               "industria y temáticos que le pertenecen (p. ej. Financiero = XLF + IYF + KRE + KBE + KIE + REM). "
+               "industria y temáticos que le pertenecen (p. ej. Financiero = XLF + IYF + KRE + KBE + KIE + IAT + IAI + IAK + IYG + REM). "
                "Vanguard (sólo cierre de mes) va al final. No aplica el filtro de categorías.")
 
     reading = daily_reading(panel, industry_panel(ctx.flows, ctx.session, 20))

@@ -1,6 +1,6 @@
 # 📊 ETF Flows Tracker
 
-Dashboard de Streamlit que trackea **flows (creations / redemptions)** de 129 ETFs (US broad, 11 sectores (SPDR, iShares, Vanguard) + 14 industrias, factor, internacionales, EM, bonds, commodities, REITs, crypto, volatilidad, defensivos).
+Dashboard de Streamlit que trackea **flows (creations / redemptions)** de 145 ETFs (US broad, 11 sectores (SPDR, iShares, Vanguard) + 30 industrias (SPDR, iShares), factor, internacionales, EM, bonds, commodities, REITs, crypto, volatilidad, defensivos).
 
 ## Fórmula
 
@@ -18,7 +18,7 @@ Flow % AUM = Flow_t / (Shares_{t-1} × NAV_{t-1})
 | Fuente | ETFs | Historial |
 |---|---|---|
 | SPDR `navhist-us-en-{ticker}.xlsx` | 31 (SPY, DIA, XL*, 14 industrias KRE…XHE, GLD, XBI, JNK, BIL) | Diario, ~1 año de backfill |
-| iShares página de producto (`Shares Outstanding … as of …` + NAV JSON-LD) | 55 (incl. 10 sectoriales IYW…IYZ) | Sólo valor actual; se acumula diario |
+| iShares página de producto (`Shares Outstanding … as of …` + NAV JSON-LD) | 71 (incl. 10 sectoriales IYW…IYZ y 16 de industria IGV…REZ) | Sólo valor actual; se acumula diario |
 | ProShares `{ticker}-historical_nav.csv` | 3 (UVXY, SVXY, VIXY) | Diario, ~1 año de backfill |
 | Invesco API de precios (`dng-api`, por CUSIP) | 5 (QQQ, QQQM, DBA, DBC, PDBC) | Sólo valor actual |
 | Páginas de issuer (KraneShares, Simplify, Bitwise) | 3 (KWEB, SVOL, BITB) | Sólo valor actual |

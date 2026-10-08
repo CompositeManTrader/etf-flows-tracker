@@ -70,6 +70,23 @@ PRODUCTS: dict[str, tuple[int, str]] = {
     "IDU":  (239524, "ishares-u-s-utilities-etf"),
     "IYM":  (239503, "ishares-u-s-basic-materials-etf"),
     "IYZ":  (239523, "ishares-u-s-telecommunications-etf"),
+    # US industry ETFs (ids found by crawling ishares.com product landing pages, title-verified)
+    "IGV":  (239771, "ishares-north-american-techsoftware-etf"),
+    "IGM":  (239769, "ishares-north-american-tech-etf"),
+    "IHI":  (239516, "ishares-us-medical-devices-etf"),
+    "IHF":  (239510, "ishares-us-healthcare-providers-etf"),
+    "IHE":  (239519, "ishares-us-pharmaceuticals-etf"),
+    "ITA":  (239502, "ishares-us-aerospace-defense-etf"),
+    "IYT":  (239501, "ishares-transportation-average-etf"),
+    "ITB":  (239512, "ishares-us-home-construction-etf"),
+    "IAT":  (239521, "ishares-us-regional-banks-etf"),
+    "IAI":  (239504, "ishares-us-brokerdealers-etf"),
+    "IAK":  (239515, "ishares-us-insurance-etf"),
+    "IYG":  (239509, "ishares-us-financial-services-etf"),
+    "IEO":  (239517, "ishares-us-oil-gas-exploration-production-etf"),
+    "IEZ":  (239518, "ishares-us-oil-equipment-services-etf"),
+    "ICF":  (239482, "ishares-cohen-steers-reit-etf"),
+    "REZ":  (239545, "ishares-residential-real-estate-capped-etf"),
 }
 
 _URL = "https://www.ishares.com/us/products/{pid}/{slug}"

@@ -65,6 +65,24 @@ ETF_UNIVERSE: dict[str, dict[str, str]] = {
     "XPH":  {"category": "US Industries", "subcategory": "Pharmaceuticals",      "issuer": "SPDR", "name": "SPDR S&P Pharmaceuticals"},
     "XHE":  {"category": "US Industries", "subcategory": "Health Care Equipment", "issuer": "SPDR", "name": "SPDR S&P Health Care Equipment"},
 
+    # US Industries iShares (16) — daily shares from iShares product pages
+    "IGV":  {"category": "US Industries", "subcategory": "Software",              "issuer": "iShares", "name": "iShares Expanded Tech-Software Sector"},
+    "IGM":  {"category": "US Industries", "subcategory": "Expanded Tech",         "issuer": "iShares", "name": "iShares Expanded Tech Sector"},
+    "IHI":  {"category": "US Industries", "subcategory": "Medical Devices",       "issuer": "iShares", "name": "iShares U.S. Medical Devices"},
+    "IHF":  {"category": "US Industries", "subcategory": "Healthcare Providers",  "issuer": "iShares", "name": "iShares U.S. Healthcare Providers"},
+    "IHE":  {"category": "US Industries", "subcategory": "Pharmaceuticals",       "issuer": "iShares", "name": "iShares U.S. Pharmaceuticals"},
+    "ITA":  {"category": "US Industries", "subcategory": "Aerospace & Defense",   "issuer": "iShares", "name": "iShares U.S. Aerospace & Defense"},
+    "IYT":  {"category": "US Industries", "subcategory": "Transportation",        "issuer": "iShares", "name": "iShares U.S. Transportation"},
+    "ITB":  {"category": "US Industries", "subcategory": "Home Construction",     "issuer": "iShares", "name": "iShares U.S. Home Construction"},
+    "IAT":  {"category": "US Industries", "subcategory": "Regional Banks",        "issuer": "iShares", "name": "iShares U.S. Regional Banks"},
+    "IAI":  {"category": "US Industries", "subcategory": "Broker-Dealers",        "issuer": "iShares", "name": "iShares U.S. Broker-Dealers & Securities Exchanges"},
+    "IAK":  {"category": "US Industries", "subcategory": "Insurance",             "issuer": "iShares", "name": "iShares U.S. Insurance"},
+    "IYG":  {"category": "US Industries", "subcategory": "Financial Services",    "issuer": "iShares", "name": "iShares U.S. Financial Services"},
+    "IEO":  {"category": "US Industries", "subcategory": "Oil & Gas E&P",         "issuer": "iShares", "name": "iShares U.S. Oil & Gas Exploration & Production"},
+    "IEZ":  {"category": "US Industries", "subcategory": "Oil Equipment & Services", "issuer": "iShares", "name": "iShares U.S. Oil Equipment & Services"},
+    "ICF":  {"category": "US Industries", "subcategory": "REITs (select)",        "issuer": "iShares", "name": "iShares Select U.S. REIT"},
+    "REZ":  {"category": "US Industries", "subcategory": "Residential REITs",     "issuer": "iShares", "name": "iShares Residential & Multisector Real Estate"},
+
     # US Factor (10)
     "MTUM": {"category": "US Factor", "subcategory": "Momentum",     "issuer": "iShares", "name": "iShares MSCI USA Momentum"},
     "QUAL": {"category": "US Factor", "subcategory": "Quality",      "issuer": "iShares", "name": "iShares MSCI USA Quality"},
@@ -200,6 +218,14 @@ _SECTOR_OF = {
     "XSD": "Technology", "XSW": "Technology", "SMH": "Technology", "SOXX": "Technology",
     "XPH": "Healthcare", "XHE": "Healthcare", "XBI": "Healthcare", "IBB": "Healthcare",
     "IYR": "Real Estate", "VNQ": "Real Estate",
+    # iShares industries
+    "IGV": "Technology", "IGM": "Technology",
+    "IHI": "Healthcare", "IHF": "Healthcare", "IHE": "Healthcare",
+    "ITA": "Industrials", "IYT": "Industrials",
+    "ITB": "Cons. Discretionary",
+    "IAT": "Financials", "IAI": "Financials", "IAK": "Financials", "IYG": "Financials",
+    "IEO": "Energy", "IEZ": "Energy",
+    "ICF": "Real Estate", "REZ": "Real Estate",
 }
 # iShares and Vanguard sector ETFs share the subcategory naming of the SPDR sectors
 _SECTOR_OF.update({t: m["subcategory"] for t, m in ETF_UNIVERSE.items()
