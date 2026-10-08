@@ -14,7 +14,8 @@ from __future__ import annotations
 import pandas as pd
 from curl_cffi import requests as cffi_requests
 
-TICKERS = ("VOO", "VTI", "VEA", "VGK", "VWO", "BND", "BNDX", "VNQ", "BSV")
+TICKERS = ("VOO", "VTI", "VEA", "VGK", "VWO", "BND", "BNDX", "VNQ", "BSV",
+           "VGT", "VFH", "VDE", "VHT", "VIS", "VCR", "VDC", "VPU", "VAW", "VOX")
 
 _PROFILE = "https://investor.vanguard.com/vmf/api/{t}/profile"
 _PRICE = "https://investor.vanguard.com/vmf/api/{t}/price"

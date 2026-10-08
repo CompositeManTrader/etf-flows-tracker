@@ -25,6 +25,30 @@ ETF_UNIVERSE: dict[str, dict[str, str]] = {
     "XLRE": {"category": "US Sectors",      "subcategory": "Real Estate",         "issuer": "SPDR", "name": "Real Estate Select Sector SPDR"},
     "XLC":  {"category": "US Sectors",      "subcategory": "Communications",      "issuer": "SPDR", "name": "Communication Services Select Sector SPDR"},
 
+    # US Sectors iShares (10) — daily shares from iShares product pages
+    "IYW":  {"category": "US Sectors", "subcategory": "Technology",          "issuer": "iShares", "name": "iShares U.S. Technology"},
+    "IYF":  {"category": "US Sectors", "subcategory": "Financials",          "issuer": "iShares", "name": "iShares U.S. Financials"},
+    "IYE":  {"category": "US Sectors", "subcategory": "Energy",              "issuer": "iShares", "name": "iShares U.S. Energy"},
+    "IYH":  {"category": "US Sectors", "subcategory": "Healthcare",          "issuer": "iShares", "name": "iShares U.S. Healthcare"},
+    "IYJ":  {"category": "US Sectors", "subcategory": "Industrials",         "issuer": "iShares", "name": "iShares U.S. Industrials"},
+    "IYC":  {"category": "US Sectors", "subcategory": "Cons. Discretionary", "issuer": "iShares", "name": "iShares U.S. Consumer Discretionary"},
+    "IYK":  {"category": "US Sectors", "subcategory": "Cons. Staples",       "issuer": "iShares", "name": "iShares U.S. Consumer Staples"},
+    "IDU":  {"category": "US Sectors", "subcategory": "Utilities",           "issuer": "iShares", "name": "iShares U.S. Utilities"},
+    "IYM":  {"category": "US Sectors", "subcategory": "Materials",           "issuer": "iShares", "name": "iShares U.S. Basic Materials"},
+    "IYZ":  {"category": "US Sectors", "subcategory": "Communications",      "issuer": "iShares", "name": "iShares U.S. Telecommunications"},
+
+    # US Sectors Vanguard (10) — month-end shares only (Vanguard monthly view)
+    "VGT":  {"category": "US Sectors", "subcategory": "Technology",          "issuer": "Vanguard", "name": "Vanguard Information Technology"},
+    "VFH":  {"category": "US Sectors", "subcategory": "Financials",          "issuer": "Vanguard", "name": "Vanguard Financials"},
+    "VDE":  {"category": "US Sectors", "subcategory": "Energy",              "issuer": "Vanguard", "name": "Vanguard Energy"},
+    "VHT":  {"category": "US Sectors", "subcategory": "Healthcare",          "issuer": "Vanguard", "name": "Vanguard Health Care"},
+    "VIS":  {"category": "US Sectors", "subcategory": "Industrials",         "issuer": "Vanguard", "name": "Vanguard Industrials"},
+    "VCR":  {"category": "US Sectors", "subcategory": "Cons. Discretionary", "issuer": "Vanguard", "name": "Vanguard Consumer Discretionary"},
+    "VDC":  {"category": "US Sectors", "subcategory": "Cons. Staples",       "issuer": "Vanguard", "name": "Vanguard Consumer Staples"},
+    "VPU":  {"category": "US Sectors", "subcategory": "Utilities",           "issuer": "Vanguard", "name": "Vanguard Utilities"},
+    "VAW":  {"category": "US Sectors", "subcategory": "Materials",           "issuer": "Vanguard", "name": "Vanguard Materials"},
+    "VOX":  {"category": "US Sectors", "subcategory": "Communications",      "issuer": "Vanguard", "name": "Vanguard Communication Services"},
+
     # US Industries SPDR (14) — sub-sector detail, all with official daily history
     "KRE":  {"category": "US Industries", "subcategory": "Regional Banks",       "issuer": "SPDR", "name": "SPDR S&P Regional Banking"},
     "KBE":  {"category": "US Industries", "subcategory": "Banks",                "issuer": "SPDR", "name": "SPDR S&P Bank"},
@@ -177,6 +201,9 @@ _SECTOR_OF = {
     "XPH": "Healthcare", "XHE": "Healthcare", "XBI": "Healthcare", "IBB": "Healthcare",
     "IYR": "Real Estate", "VNQ": "Real Estate",
 }
+# iShares and Vanguard sector ETFs share the subcategory naming of the SPDR sectors
+_SECTOR_OF.update({t: m["subcategory"] for t, m in ETF_UNIVERSE.items()
+                   if m["category"] == "US Sectors" and m["issuer"] in ("iShares", "Vanguard")})
 
 
 def sector_of(ticker: str) -> str | None:

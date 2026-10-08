@@ -59,6 +59,17 @@ PRODUCTS: dict[str, tuple[int, str]] = {
     "ETHA": (337614, "ishares-ethereum-trust-etf"),
     "HEFA": (259622, "ishares-currency-hedged-msci-eafe-etf"),
     "SHV":  (239466, "ishares-short-treasury-bond-etf"),
+    # US sector ETFs
+    "IYW":  (239522, "ishares-u-s-technology-etf"),
+    "IYF":  (239508, "ishares-u-s-financials-etf"),
+    "IYE":  (239507, "ishares-u-s-energy-etf"),
+    "IYH":  (239511, "ishares-u-s-healthcare-etf"),
+    "IYJ":  (239514, "ishares-u-s-industrials-etf"),
+    "IYC":  (239506, "ishares-u-s-consumer-discretionary-etf"),
+    "IYK":  (239505, "ishares-u-s-consumer-staples-etf"),
+    "IDU":  (239524, "ishares-u-s-utilities-etf"),
+    "IYM":  (239503, "ishares-u-s-basic-materials-etf"),
+    "IYZ":  (239523, "ishares-u-s-telecommunications-etf"),
 }
 
 _URL = "https://www.ishares.com/us/products/{pid}/{slug}"

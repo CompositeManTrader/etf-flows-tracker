@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from config.universe import SECTOR_ES
+from config.universe import SECTOR_ES, sector_of
 from core.flows_calc import sessions_up_to
 from core.sectors import (
     daily_reading, industry_panel, sector_daily, sector_panel, sector_session, with_sector,
@@ -161,6 +161,45 @@ def _industries(ctx: Ctx, panel: pd.DataFrame, n: int, table_slot) -> None:
     })
 
 
+def _vanguard_monthly(ctx: Ctx, panel: pd.DataFrame) -> None:
+    """Vanguard sector ETFs: month-end flows, and how much of each sector is only visible monthly."""
+    m = ctx.monthly
+    if m is None or m.empty:
+        return
+    m = m.assign(sector=m["ticker"].map(sector_of)).dropna(subset=["sector"])
+    if m.empty:
+        return
+    latest = m.sort_values("date").groupby("ticker").tail(1)
+    daily_aum = panel.set_index("sector")["aum"]
+    t = pd.DataFrame({
+        "Sector": latest["sector"].map(SECTOR_ES),
+        "ETF": latest["ticker"],
+        "Cierre de mes": latest["date"].dt.strftime("%Y-%m-%d"),
+        "AUM Vanguard ($B)": latest["aum"] / 1e9,
+        "Flow del mes ($M)": latest["flow_usd"] / 1e6,
+        "% AUM": latest["flow_pct_aum"] * 100,
+        "AUM con dato diario ($B)": latest["sector"].map(daily_aum).values / 1e9,
+    })
+    t["Cobertura diaria"] = t["AUM con dato diario ($B)"] / (t["AUM con dato diario ($B)"] + t["AUM Vanguard ($B)"]) * 100
+    t = t.sort_values("AUM Vanguard ($B)", ascending=False)
+
+    theme.section("Vanguard sectorial · mensual")
+    st.caption("Vanguard sólo publica shares a cierre de mes, así que sus ETFs sectoriales no entran a los totales "
+               "diarios de arriba. **Cobertura diaria** = parte del AUM sectorial (entre los ETFs del universo) que "
+               "sí tiene dato diario; donde es baja, la lectura diaria de ese sector ve menos del dinero institucional.")
+    if t["Flow del mes ($M)"].isna().all():
+        next_me = (pd.Timestamp(latest["date"].max()) + pd.offsets.MonthEnd(1)).date()
+        st.info(f"Primer flow mensual de Vanguard cuando se publique el cierre del {next_me:%d %b %Y}.")
+        t = t.drop(columns=["Flow del mes ($M)", "% AUM"])
+    st.dataframe(t, hide_index=True, width="stretch", height=36 * len(t) + 40, column_config={
+        "AUM Vanguard ($B)": st.column_config.NumberColumn(format="%.1f"),
+        "Flow del mes ($M)": st.column_config.NumberColumn(format="%+,.0f"),
+        "% AUM": st.column_config.NumberColumn(format="%+.2f%%"),
+        "AUM con dato diario ($B)": st.column_config.NumberColumn(format="%.1f"),
+        "Cobertura diaria": st.column_config.ProgressColumn(format="%.0f%%", min_value=0, max_value=100),
+    })
+
+
 def render(ctx: Ctx) -> None:
     session = sector_session(ctx.flows, ctx.session)
     chips = [(f"sesión {session:%d %b %Y}", "")] if session is not None else []
@@ -177,8 +216,9 @@ def render(ctx: Ctx) -> None:
     if panel.empty:
         st.info("Sin datos sectoriales.")
         return
-    st.caption("11 sectores GICS. Cada sector suma su Select Sector SPDR más los ETFs de industria y temáticos que "
-               "le pertenecen (p. ej. Financiero = XLF + KRE + KBE + KIE + REM). No aplica el filtro de categorías.")
+    st.caption("11 sectores GICS. Cada sector suma su Select Sector SPDR, su ETF sectorial de iShares y los ETFs de "
+               "industria y temáticos que le pertenecen (p. ej. Financiero = XLF + IYF + KRE + KBE + KIE + REM). "
+               "Vanguard (sólo cierre de mes) va al final. No aplica el filtro de categorías.")
 
     reading = daily_reading(panel, industry_panel(ctx.flows, ctx.session, 20))
     if reading:
@@ -205,3 +245,5 @@ def render(ctx: Ctx) -> None:
     with d:
         theme.section("Industrias dentro del sector")
         _industries(ctx, panel, n, table_slot)
+
+    _vanguard_monthly(ctx, panel)
